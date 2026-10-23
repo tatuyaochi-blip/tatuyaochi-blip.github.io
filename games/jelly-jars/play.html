@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jelly Jars</title>
+<meta name="description" content="A calm color sorting puzzle. Pour jelly between jars until every jar holds one color.">
+<meta name="theme-color" content="#eaf4f7">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='78' font-size='80' text-anchor='middle'%3E%F0%9F%AB%99%3C/text%3E%3C/svg%3E">
+<style>
+:root { --bg: #eaf4f7; --bg2: #d5e8ef; --panel: #ffffff; --ink: #1f2d36; --muted: #5f7480; --line: #c7dbe3; --glass: rgba(255,255,255,.55); --glass-b: rgba(70,110,130,.35); --accent: #ff6f91; --accent-ink: #fff; --focus: #2563eb; --gold: #f5b301;
+  --k1: #ff5d73; --k2: #ffa13d; --k3: #ffd93d; --k4: #6fd36b; --k5: #2fb7a8; --k6: #3fa2ff; --k7: #7a6cff; --k8: #c66bff; --k9: #ff8fd0; --k10: #9b6b4a; --k11: #9aa4ad; --k12: #2f3b52; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #142028; --bg2: #0d151b; --panel: #1d2c36; --ink: #e8f1f5; --muted: #9fb3be; --line: #2f4350; --glass: rgba(255,255,255,.08); --glass-b: rgba(170,210,230,.35); --accent: #ff86a3; --accent-ink: #2a0d16; --focus: #8ab4ff; } }
+:root[data-theme="dark"] { --bg: #142028; --bg2: #0d151b; --panel: #1d2c36; --ink: #e8f1f5; --muted: #9fb3be; --line: #2f4350; --glass: rgba(255,255,255,.08); --glass-b: rgba(170,210,230,.35); --accent: #ff86a3; --accent-ink: #2a0d16; --focus: #8ab4ff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { background: radial-gradient(ellipse at 50% 20%, var(--bg), var(--bg2)); background-color: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.app { height: 100%; display: flex; flex-direction: column; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; min-height: 52px; }
+.lv { font-weight: 900; font-size: 1.25rem; }
+.lv small { font-weight: 600; color: var(--muted); font-size: .8rem; margin-left: 6px; }
+.stat { color: var(--muted); font-size: .9rem; text-align: right; }
+.stat b { color: var(--ink); font-size: 1.05rem; }
+.field { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: var(--rg, 24px); min-height: 0; padding-top: var(--pt, 40px); }
+.row { display: flex; justify-content: center; gap: var(--gap, 14px); }
+.jar { --w: 56px; width: var(--w); height: calc(var(--w) * 4.25); padding: calc(var(--w) * .1) calc(var(--w) * .08) calc(var(--w) * .12); border: 3px solid var(--glass-b); border-top-width: 0; border-radius: 6px 6px calc(var(--w) * .5) calc(var(--w) * .5); background: var(--glass);
+  display: flex; flex-direction: column-reverse; align-items: center; gap: calc(var(--w) * .04); position: relative; transition: transform .15s ease; box-shadow: inset 0 0 0 1px rgba(255,255,255,.4); }
+.jar::before { content: ""; position: absolute; top: -3px; left: -7px; right: -7px; height: 8px; border-radius: 4px; background: var(--glass-b); }
+.jar.sel { transform: translateY(calc(var(--w) * -.3)); }
+.jar.sel .b:last-child { transform: translateY(calc(var(--w) * -.35)); }
+.jar.done { border-color: var(--gold); box-shadow: 0 0 calc(var(--w) * .35) rgba(245,179,1,.45); }
+.jar.done::after { content: "✓"; position: absolute; top: calc(var(--w) * -.75); left: 50%; transform: translateX(-50%); color: var(--gold); font-weight: 900; font-size: calc(var(--w) * .42); }
+.jar.hint { outline: 3px dashed var(--accent); outline-offset: 4px; }
+.jar.nope { animation: shake .25s; }
+@keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+.b { width: calc(var(--w) * .76); height: calc(var(--w) * .76); flex: none; border-radius: 42% 42% 46% 46%; display: grid; place-items: center; font-size: calc(var(--w) * .34); line-height: 1; color: rgba(0,0,0,.42); transition: transform .15s ease;
+  box-shadow: inset 0 calc(var(--w) * -.08) 0 rgba(0,0,0,.18), inset calc(var(--w) * .1) calc(var(--w) * .1) calc(var(--w) * .12) rgba(255,255,255,.45); }
+.b.drop { animation: drop .28s ease-out; }
+@keyframes drop { 0% { transform: translateY(calc(var(--w) * -1.2)) scale(.9); } 70% { transform: translateY(2px) scale(1.06, .92); } 100% { transform: none; } }
+.k1 { background: var(--k1); } .k2 { background: var(--k2); } .k3 { background: var(--k3); } .k4 { background: var(--k4); } .k5 { background: var(--k5); } .k6 { background: var(--k6); }
+.k7 { background: var(--k7); } .k8 { background: var(--k8); } .k9 { background: var(--k9); } .k10 { background: var(--k10); } .k11 { background: var(--k11); } .k12 { background: var(--k12); color: rgba(255,255,255,.6); }
+.bar { display: flex; justify-content: center; gap: 10px; padding: 8px 10px 12px; flex-wrap: wrap; }
+.tb { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 8px 14px; min-width: 52px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.tb:disabled { opacity: .45; cursor: default; }
+.tb .ic { font-size: 1.15rem; }
+.toast { position: fixed; left: 50%; bottom: 72px; max-width: calc(100% - 32px); text-align: center; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-weight: 700; font-size: .9rem; z-index: 5; pointer-events: none; }
+.overlay { position: fixed; inset: 0; background: rgba(15,30,40,.45); display: grid; place-items: center; z-index: 10; padding: 16px; }
+.box { background: var(--panel); border-radius: 22px; padding: 22px 26px; width: min(420px, 100%); text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.25); max-height: 100%; overflow: auto; }
+.box h1 { margin: 4px 0 6px; font-size: 2.3rem; line-height: 1.05; }
+.box h1 span { color: var(--accent); }
+.box p { color: var(--muted); margin: 6px 0 12px; }
+.btn { display: block; width: 100%; padding: 11px; margin: 8px 0 0; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); font-weight: 800; font-size: 1rem; }
+.btn.go { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.stars { font-size: 2.4rem; letter-spacing: 4px; color: var(--gold); }
+.stars .off { color: var(--line); }
+.small { font-size: .8rem; color: var(--muted); }
+.conf { position: fixed; width: 10px; height: 14px; border-radius: 3px; z-index: 11; pointer-events: none; animation: fall 1.4s ease-in forwards; }
+@keyframes fall { to { transform: translateY(110vh) rotate(540deg); opacity: .6; } }
+@media (max-height: 520px) { .top { min-height: 40px; padding: 4px 12px; } .lv { font-size: 1.05rem; } .bar { padding: 4px 8px 6px; gap: 8px; } .tb { padding: 5px 10px; } .box { padding: 14px 18px; } .box h1 { font-size: 1.8rem; } }
+@media (max-width: 480px) { .tb .tx { display: none; } .tb { min-width: 48px; justify-content: center; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="top">
+    <div class="lv" id="lv">Level 1</div>
+    <div class="stat">Moves <b id="moves">0</b> · Par <b id="par">0</b></div>
+  </div>
+  <div class="field" id="field" aria-label="Jars"></div>
+  <div class="bar">
+    <button class="tb" id="bUndo" aria-label="Undo"><span class="ic">↶</span><span class="tx">Undo</span></button>
+    <button class="tb" id="bRestart" aria-label="Restart"><span class="ic">⟲</span><span class="tx">Restart</span></button>
+    <button class="tb" id="bJar" aria-label="Add an empty jar"><span class="ic">＋</span><span class="tx">Jar</span></button>
+    <button class="tb" id="bHint" aria-label="Hint"><span class="ic">💡</span><span class="tx">Hint</span></button>
+    <button class="tb" id="bSound" aria-label="Sound on"><span class="ic">🔊</span></button>
+    <button class="tb" id="bMenu" aria-label="Menu"><span class="ic">☰</span></button>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<div class="overlay" id="oTitle">
+  <div class="box">
+    <div style="font-size:2.4rem">🍓🫐🍋</div>
+    <h1>Jelly <span>Jars</span></h1>
+    <p>Tap a jar, then tap another to pour. Jelly only goes onto the same color or into an empty jar. Fill every jar with one color!</p>
+    <button class="btn go" id="btnPlay">Play</button>
+    <button class="btn" id="btnDaily">Daily jars</button>
+    <p class="small" id="dailyNote"></p>
+  </div>
+</div>
+<div class="overlay" id="oWin" hidden>
+  <div class="box">
+    <h1 id="wTitle" style="font-size:1.9rem">Sorted!</h1>
+    <div class="stars" id="wStars"></div>
+    <p id="wDetail"></p>
+    <button class="btn go" id="btnNext">Next level</button>
+    <button class="btn" id="btnShare" hidden>Copy result</button>
+    <button class="btn" id="btnReplay">Replay</button>
+    <button class="btn" id="btnHome">Menu</button>
+  </div>
+</div>
+<script>
+// Jelly Jars: 同じ色のゼリーを1つのびんに集める仕分けパズル。DOM に依存しない規則部分。
+(function (root) {
+  'use strict';
+  const CAP = 4;
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
+  const dailySeed = (date) => fnv('jars-' + date);
+  // 面ごとの色数（3色から始めて12色まで）
+  const colorsFor = (level) => Math.min(12, 3 + Math.floor((level - 1) * 0.5));
+
+  const top = (t) => t[t.length - 1];
+  // 上にある同じ色のかたまりの数
+  const run = (t) => { let n = 0; for (let i = t.length - 1; i >= 0 && t[i] === top(t); i--) n++; return n; };
+  const isDone = (t) => t.length === CAP && run(t) === CAP;
+  function canPour(tubes, a, b) {
+    if (a === b || !tubes[a] || !tubes[b]) return false;
+    const A = tubes[a], B = tubes[b];
+    if (!A.length || B.length >= CAP || isDone(A)) return false;
+    return !B.length || top(B) === top(A);
+  }
+  // 注げるだけ注ぐ。動いた数を返す
+  function pourTubes(tubes, a, b) {
+    if (!canPour(tubes, a, b)) return 0;
+    const n = Math.min(run(tubes[a]), CAP - tubes[b].length);
+    for (let i = 0; i < n; i++) tubes[b].push(tubes[a].pop());
+    return n;
+  }
+  const solved = (tubes) => tubes.every((t) => !t.length || isDone(t));
+  const key = (tubes) => tubes.map((t) => t.join(',')).sort().join('|');
+
+  // 深さ優先で解を探す。見つかれば [[a,b],...]、なければ null（上限に達したら undefined）
+  function solve(start, limit, jitter) {
+    limit = limit || 60000;
+    const seen = new Set();
+    const tubes = start.map((t) => t.slice());
+    const path = [];
+    let nodes = 0, capped = false;
+    function moves() {
+      const out = [];
+      for (let a = 0; a < tubes.length; a++) {
+        const A = tubes[a];
+        if (!A.length || isDone(A)) continue;
+        const uniform = run(A) === A.length;
+        let emptyTried = false;
+        for (let b = 0; b < tubes.length; b++) {
+          if (!canPour(tubes, a, b)) continue;
+          const B = tubes[b];
+          if (!B.length) {
+            if (uniform || emptyTried) continue; // 一色だけのびんを空きびんへ移すのは無駄。空きびんはどれも同じ
+            emptyTried = true;
+            out.push([a, b, jitter ? jitter() * 0.9 : 0]);
+          } else {
+            const fits = CAP - B.length >= run(A);
+            out.push([a, b, (fits ? 2 : 1) + (run(B) === B.length ? 1 : 0) + (fits && A.length === run(A) ? 2 : 0) + (jitter ? jitter() * 0.9 : 0)]);
+          }
+        }
+      }
+      return out.sort((x, y) => y[2] - x[2]);
+    }
+    function dfs() {
+      if (solved(tubes)) return true;
+      if (++nodes > limit) { capped = true; return false; }
+      const k = key(tubes);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      for (const [a, b] of moves()) {
+        const n = Math.min(run(tubes[a]), CAP - tubes[b].length);
+        for (let i = 0; i < n; i++) tubes[b].push(tubes[a].pop());
+        path.push([a, b]);
+        if (dfs()) return true;
+        path.pop();
+        for (let i = 0; i < n; i++) tubes[a].push(tubes[b].pop());
+        if (capped) return false;
+      }
+      return false;
+    }
+    if (dfs()) return path.slice();
+    return capped ? undefined : null;
+  }
+
+  // 面を作る。並べてから解けることを確かめ、解の手数を目安（par）にする
+  function makeLevel(seed, colors, empties) {
+    empties = empties == null ? 2 : empties;
+    const rnd = mulberry32(seed);
+    for (let tries = 0; tries < 200; tries++) {
+      const balls = [];
+      for (let c = 1; c <= colors; c++) for (let i = 0; i < CAP; i++) balls.push(c);
+      for (let i = balls.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [balls[i], balls[j]] = [balls[j], balls[i]]; }
+      const tubes = [];
+      for (let c = 0; c < colors; c++) tubes.push(balls.slice(c * CAP, c * CAP + CAP));
+      for (let e = 0; e < empties; e++) tubes.push([]);
+      // 最初からそろっているびんや、3つ以上同じ色が並ぶびんは避ける
+      if (tubes.some((t) => t.length && run(t) >= 3)) continue;
+      const sol = solve(tubes, 40000);
+      if (!sol || !sol.length) continue;
+      // 並べ方を少し変えて何度か解き、いちばん短い手数を目安にする
+      let par = sol.length;
+      for (let k = 0; k < 12; k++) { const s2 = solve(tubes, 20000, rnd); if (s2 && s2.length < par) par = s2.length; }
+      return { tubes, par };
+    }
+    // 念のための逃げ道: 空きびんを1つ足して解けるものにする
+    return makeLevel(seed + 1, colors, empties + 1);
+  }
+
+  function newGame(opts) {
+    const level = (opts && opts.level) || 1;
+    const seed = (opts && opts.seed) || fnv('level-' + level);
+    const colors = (opts && opts.colors) || colorsFor(level);
+    const L = makeLevel(seed, colors);
+    return { level, seed, colors, tubes: L.tubes, par: L.par, moves: 0, history: [], undos: 0, hints: 0, extra: false, won: false };
+  }
+  function pour(g, a, b) {
+    if (g.won) return 0;
+    const n = pourTubes(g.tubes, a, b);
+    if (!n) return 0;
+    g.history.push([a, b, n]);
+    g.moves++;
+    if (solved(g.tubes)) g.won = true;
+    return n;
+  }
+  function undo(g) {
+    if (g.won || !g.history.length) return false;
+    const [a, b, n] = g.history.pop();
+    for (let i = 0; i < n; i++) g.tubes[a].push(g.tubes[b].pop());
+    g.undos++;
+    return true;
+  }
+  function restart(g) {
+    while (g.history.length) { const [a, b, n] = g.history.pop(); for (let i = 0; i < n; i++) g.tubes[a].push(g.tubes[b].pop()); }
+    g.moves = 0; g.won = false;
+  }
+  // 1面に1回、空きびんを足せる
+  function addTube(g) { if (g.extra || g.won) return false; g.extra = true; g.tubes.push([]); return true; }
+  // 次の一手。今の局面から解けなければ null
+  // 続けてヒントを使っても行き来しないよう、見つけた解の残りを覚えておく
+  function hint(g) {
+    let s = g.plan && g.planKey === key(g.tubes) ? g.plan : solve(g.tubes, 60000);
+    if (!s || !s.length) { g.plan = null; return null; }
+    const t = g.tubes.map((x) => x.slice());
+    pourTubes(t, s[0][0], s[0][1]);
+    g.plan = s.slice(1); g.planKey = key(t);
+    g.hints++;
+    return s[0];
+  }
+  const anyMove = (g) => g.tubes.some((_, a) => g.tubes.some((__, b) => canPour(g.tubes, a, b)));
+  // 目安の手数以内で3つ星。ヒントや空きびんを使ったら最大2つ
+  const stars = (g) => Math.min(g.hints || g.extra ? 2 : 3, g.moves <= g.par ? 3 : g.moves <= Math.ceil(g.par * 1.4) ? 2 : 1);
+  const doneCount = (g) => g.tubes.filter(isDone).length;
+  const serialize = (g) => JSON.stringify(g);
+  function load(s) {
+    try {
+      const g = JSON.parse(s);
+      if (!g || !Array.isArray(g.tubes) || !g.tubes.every((t) => Array.isArray(t) && t.length <= CAP)) return null;
+      return g;
+    } catch (e) { return null; }
+  }
+  const api = { CAP, colorsFor, canPour, pour, undo, restart, addTube, hint, solve, solved, isDone, anyMove, stars, doneCount, newGame, makeLevel, serialize, load, dailySeed, mulberry32, run };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.JellyJars = api;
+})(this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.JellyJars;
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const TEST = qs.has('test');
+  const TODAY = qs.get('date') || new Date().toISOString().slice(0, 10);
+  const KEY = 'jj-save', META = 'jj-meta';
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) { /* 同上 */ } },
+  };
+  let meta = { level: 1, stars: {}, daily: {}, sound: true };
+  try { meta = Object.assign(meta, JSON.parse(store.get(META)) || {}); } catch (e) { /* 既定のまま */ }
+  if (qs.has('level')) meta.level = Math.max(1, +qs.get('level') || 1);
+  const saveMeta = () => store.set(META, JSON.stringify(meta));
+  let g = null, mode = 'level', sel = -1, focusIdx = 0;
+  const saveGame = () => { if (g && !g.won) store.set(KEY, JSON.stringify({ game: g, mode, date: TODAY })); };
+  // 色だけに頼らないよう、色ごとに印をつける（テキスト表示を指定）
+  const SYM = ['', '♥', '★', '●', '♣', '◆', '▲', '■', '✿', '♦', '☾', '✚', '♠'].map((s) => (s ? s + '︎' : s));
+
+  // ---- 効果音 ----
+  let ac = null;
+  function tone(f, d, type, v, w) {
+    if (!meta.sound || TEST) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (w || 0), o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 1.25, t + d * 0.6);
+      gn.gain.setValueAtTime(v || 0.07, t); gn.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + d);
+    } catch (e) { /* 音が出せなくても遊べる */ }
+  }
+  const sfx = {
+    pick: () => tone(600, 0.06, 'triangle', 0.05),
+    pour: (n) => { for (let i = 0; i < n; i++) tone(300 + i * 60, 0.09, 'sine', 0.08, i * 0.05); },
+    bad: () => tone(150, 0.12, 'square', 0.03),
+    jar: () => [0, 4, 7].forEach((k, i) => tone(523 * Math.pow(2, k / 12), 0.16, 'triangle', 0.06, i * 0.05)),
+    win: () => [0, 4, 7, 12, 16].forEach((k, i) => tone(523 * Math.pow(2, k / 12), 0.25, 'triangle', 0.07, i * 0.09)),
+  };
+
+  // ---- 並べ方: 画面に一番大きく収まる段数を選ぶ ----
+  function layout() {
+    if (!g) return;
+    const f = $('field'), n = g.tubes.length;
+    const W = f.clientWidth - 16, H = f.clientHeight - 8; // clientHeight は上の余白も含む
+    let best = null;
+    for (let rows = 1; rows <= 4; rows++) {
+      const per = Math.ceil(n / rows);
+      const w = Math.min(W / (per * 1.45), H / (rows * 4.25 + (rows - 1) * 0.9 + 0.8 + 0.15), 90);
+      if (!best || w > best.w) best = { rows, per, w };
+    }
+    const w = Math.max(18, Math.floor(best.w));
+    f.style.setProperty('--gap', `${Math.floor(w * 0.45)}px`);
+    f.style.setProperty('--rg', `${Math.floor(w * 0.9)}px`);
+    f.style.setProperty('--pt', `${Math.floor(w * 0.8)}px`); // 持ち上げたびんと✓印の分
+    return { per: best.per, w };
+  }
+  let dropAt = null;
+  function render() {
+    const L = layout();
+    const f = $('field');
+    let h = '';
+    for (let i = 0; i < g.tubes.length; i += L.per) {
+      h += '<div class="row">';
+      for (let k = i; k < Math.min(i + L.per, g.tubes.length); k++) {
+        const t = g.tubes[k];
+        const done = G.isDone(t);
+        const balls = t.map((c, j) => `<div class="b k${c}${dropAt && dropAt.jar === k && j >= t.length - dropAt.n ? ' drop' : ''}">${SYM[c]}</div>`).join('');
+        const label = t.length ? `Jar ${k + 1}: ${t.length} of ${G.CAP}${done ? ', complete' : ''}` : `Jar ${k + 1}: empty`;
+        h += `<button class="jar${k === sel ? ' sel' : ''}${done ? ' done' : ''}" data-j="${k}" style="--w:${L.w}px" aria-label="${label}" aria-pressed="${k === sel}" tabindex="${k === focusIdx ? 0 : -1}">${balls}</button>`;
+      }
+      h += '</div>';
+    }
+    f.innerHTML = h;
+    dropAt = null;
+    hud();
+  }
+  function hud() {
+    $('lv').innerHTML = mode === 'daily' ? `Daily <small>${TODAY}</small>` : `Level ${g.level}`;
+    $('moves').textContent = g.moves; $('par').textContent = g.par;
+    $('bUndo').disabled = !g.history.length || g.won;
+    $('bRestart').disabled = !g.moves || g.won;
+    $('bJar').disabled = g.extra || g.won;
+  }
+  let toastT = 0;
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 1800); }
+  const jarEl = (k) => document.querySelector(`.jar[data-j="${k}"]`);
+  function focusJar(k) { focusIdx = k; const el = jarEl(k); if (el) { document.querySelectorAll('.jar').forEach((j) => { j.tabIndex = -1; }); el.tabIndex = 0; el.focus(); } }
+
+  // ---- 操作 ----
+  function tapJar(k) {
+    if (!g || g.won) return;
+    document.querySelectorAll('.jar.hint').forEach((e) => e.classList.remove('hint'));
+    if (sel < 0) {
+      if (!g.tubes[k].length || G.isDone(g.tubes[k])) { nope(k); return; }
+      sel = k; sfx.pick(); render(); focusJar(k); return;
+    }
+    if (sel === k) { sel = -1; render(); focusJar(k); return; }
+    const from = sel;
+    const before = G.doneCount(g);
+    const n = G.pour(g, from, k);
+    if (!n) {
+      // 注げないときは、そのびんを選び直す（空やそろったびんなら選択を外す）
+      if (g.tubes[k].length && !G.isDone(g.tubes[k])) { sel = k; sfx.pick(); render(); focusJar(k); } else { nope(k); }
+      return;
+    }
+    sel = -1; dropAt = { jar: k, n };
+    sfx.pour(n);
+    render(); focusJar(k);
+    if (G.doneCount(g) > before) setTimeout(sfx.jar, 150);
+    saveGame();
+    if (g.won) return win();
+    if (!G.anyMove(g)) toast('No moves left. Undo or restart.');
+  }
+  function nope(k) { sfx.bad(); const el = jarEl(k); if (el) { el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); } }
+  $('field').addEventListener('click', (e) => { const j = e.target.closest('.jar'); if (j) tapJar(+j.dataset.j); });
+  $('bUndo').addEventListener('click', () => { if (G.undo(g)) { sel = -1; render(); saveGame(); } });
+  $('bRestart').addEventListener('click', () => { G.restart(g); sel = -1; render(); saveGame(); });
+  $('bJar').addEventListener('click', () => { if (G.addTube(g)) { sel = -1; render(); saveGame(); toast('Extra jar added (max 2 stars).'); } });
+  $('bHint').addEventListener('click', () => {
+    if (!g || g.won) return;
+    const h = G.hint(g);
+    if (!h) { toast(G.anyMove(g) ? 'No way out from here. Try undo.' : 'No moves left. Undo or restart.'); return; }
+    sel = -1; render();
+    jarEl(h[0]).classList.add('hint'); jarEl(h[1]).classList.add('hint');
+    toast(`Pour jar ${h[0] + 1} into jar ${h[1] + 1}`);
+    saveGame();
+  });
+  function renderSound() { $('bSound').querySelector('.ic').textContent = meta.sound ? '🔊' : '🔇'; $('bSound').setAttribute('aria-label', meta.sound ? 'Sound on' : 'Sound off'); }
+  $('bSound').addEventListener('click', () => { meta.sound = !meta.sound; saveMeta(); renderSound(); });
+  $('bMenu').addEventListener('click', () => { saveGame(); showTitle(); });
+  document.addEventListener('keydown', (e) => {
+    if (!g || g.won || !$('oTitle').hidden) return;
+    if (e.key === 'z' || e.key === 'u' || e.key === 'Backspace') { e.preventDefault(); $('bUndo').click(); return; }
+    if (e.key === 'r') { $('bRestart').click(); return; }
+    if (e.key === 'h') { $('bHint').click(); return; }
+    const d = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+    if (d) { e.preventDefault(); focusJar((focusIdx + d + g.tubes.length) % g.tubes.length); }
+    else if (/^[1-9]$/.test(e.key) && +e.key <= g.tubes.length) { tapJar(+e.key - 1); }
+    else if (e.key === '0' && g.tubes.length >= 10) { tapJar(9); }
+    else if (e.key === 'Escape' && sel >= 0) { sel = -1; render(); }
+  });
+  window.addEventListener('resize', () => { if (g) render(); });
+
+  // ---- 画面の流れ ----
+  function start(m, game) {
+    mode = m;
+    g = game || (m === 'daily' ? Object.assign(G.newGame({ seed: G.dailySeed(TODAY), colors: 9 }), { level: 0 }) : G.newGame({ level: meta.level }));
+    sel = -1; focusIdx = 0;
+    $('oTitle').hidden = true; $('oWin').hidden = true;
+    render(); saveGame();
+    if (!TEST) setTimeout(() => focusJar(0), 0);
+  }
+  function confetti() {
+    if (TEST || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const cols = ['--k1', '--k3', '--k4', '--k6', '--k8'].map((v) => getComputedStyle(document.documentElement).getPropertyValue(v));
+    for (let i = 0; i < 40; i++) {
+      const c = document.createElement('div');
+      c.className = 'conf';
+      c.style.left = `${Math.random() * 100}vw`; c.style.top = `${-10 - Math.random() * 20}px`;
+      c.style.background = cols[i % cols.length]; c.style.animationDelay = `${Math.random() * 0.4}s`;
+      document.body.appendChild(c); setTimeout(() => c.remove(), 2000);
+    }
+  }
+  function win() {
+    store.del(KEY);
+    const st = G.stars(g);
+    let detail = `${g.moves} moves (par ${g.par})${g.hints ? ` · ${g.hints} hint${g.hints > 1 ? 's' : ''}` : ''}${g.extra ? ' · extra jar' : ''}.`;
+    if (mode === 'daily') {
+      if (meta.daily[TODAY] == null) { meta.daily[TODAY] = { moves: g.moves, stars: st }; detail += ' Your daily result is saved.'; }
+      else detail += ` Practice run. Your daily: ${meta.daily[TODAY].moves} moves.`;
+      $('wTitle').textContent = 'Daily jars sorted!';
+    } else {
+      meta.stars[g.level] = Math.max(meta.stars[g.level] || 0, st);
+      if (g.level === meta.level) meta.level++;
+      $('wTitle').textContent = `Level ${g.level} sorted!`;
+    }
+    saveMeta();
+    $('wStars').innerHTML = [1, 2, 3].map((i) => `<span class="${i <= st ? '' : 'off'}">★</span>`).join('');
+    $('wStars').setAttribute('aria-label', `${st} of 3 stars`);
+    $('wDetail').textContent = st < 3 && !g.hints && !g.extra ? `${detail} Finish in ${g.par} moves for 3 stars.` : detail;
+    $('btnShare').hidden = mode !== 'daily'; $('btnShare').textContent = 'Copy result';
+    $('btnNext').textContent = mode === 'daily' ? `Play level ${meta.level}` : `Next: level ${meta.level}`;
+    sfx.win(); confetti();
+    setTimeout(() => { $('oWin').hidden = false; $('btnNext').focus(); }, TEST ? 0 : 700);
+  }
+  function showTitle() {
+    let saved = null;
+    try { const s = JSON.parse(store.get(KEY)); if (s && !(s.mode === 'daily' && s.date !== TODAY)) { const gg = G.load(JSON.stringify(s.game)); if (gg && !gg.won) saved = { game: gg, mode: s.mode }; } } catch (e) { saved = null; }
+    const resume = saved && saved.mode === 'level' && saved.game.level === meta.level ? saved : null;
+    $('btnPlay').textContent = resume ? `Continue level ${meta.level}` : `Play level ${meta.level}`;
+    $('btnPlay').onclick = () => start('level', resume ? resume.game : null);
+    const dsaved = saved && saved.mode === 'daily' ? saved : null;
+    $('btnDaily').onclick = () => start('daily', dsaved ? dsaved.game : null);
+    const d = meta.daily[TODAY];
+    $('dailyNote').textContent = d ? `Today's daily: ${d.moves} moves. You can still practice it.` : 'Everyone gets the same 9-color puzzle today. Only your first finish counts.';
+    $('oWin').hidden = true; $('oTitle').hidden = false; $('btnPlay').focus();
+  }
+  $('btnNext').addEventListener('click', () => start('level'));
+  $('btnReplay').addEventListener('click', () => { if (mode === 'daily') start('daily'); else { const lv = g.level; start('level', G.newGame({ level: lv })); } });
+  $('btnHome').addEventListener('click', showTitle);
+  $('btnShare').addEventListener('click', () => {
+    const url = globalThis.JJ_SHARE_URL || location.origin + location.pathname;
+    const d = meta.daily[TODAY] || { moves: g.moves, stars: G.stars(g) };
+    const text = `Jelly Jars daily ${TODAY}: ${d.moves} moves ${'⭐'.repeat(d.stars)}\n${url}`;
+    let done = false;
+    const fin = (ok) => { if (!done) { done = true; $('btnShare').textContent = ok ? 'Copied!' : text; } };
+    setTimeout(() => fin(false), 1500); // 許可がない環境では文面を見せる
+    try { navigator.clipboard.writeText(text).then(() => fin(true), () => fin(false)); } catch (e) { fin(false); }
+  });
+  window.addEventListener('pagehide', saveGame);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+  if (TEST) window.__jj = { get game() { return g; }, G, tap: tapJar, start, render, get meta() { return meta; } }; // 検証用
+  renderSound(); showTitle();
+})();
+</script>
+</body>
+</html>
