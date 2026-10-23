@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brick Pop</title>
+<meta name="description" content="A bright brick breaker. Bounce the ball with your paddle, pop every brick and catch power-ups.">
+<meta name="theme-color" content="#16213e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='78' font-size='80' text-anchor='middle'%3E%F0%9F%A7%B1%3C/text%3E%3C/svg%3E">
+<style>
+:root { --panel: #fffdf8; --text: #1d2440; --muted: #67708f; --accent: #ff5d8f; --focus: #8ab4ff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #16213e; }
+body { color: #fff; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; cursor: none; }
+.overlay, .ib { cursor: auto; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.top { position: fixed; left: 0; right: 0; top: 0; height: 46px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; padding-top: env(safe-area-inset-top); pointer-events: none; font-weight: 800; }
+.top .sc { font-size: 1.5rem; font-weight: 900; }
+.top .mid { opacity: .85; }
+.hearts { letter-spacing: 2px; }
+.icons { position: fixed; right: calc(10px + env(safe-area-inset-right)); bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 5; }
+.ib { width: 40px; height: 40px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.12); color: #fff; font-size: 1.05rem; }
+.banner { position: fixed; left: 0; right: 0; top: 46%; text-align: center; font-size: clamp(1.8rem, 7vh, 3.2rem); font-weight: 900; pointer-events: none; text-shadow: 0 3px 12px rgba(0,0,0,.45); animation: ban 1.3s ease-out forwards; }
+@keyframes ban { 0% { transform: scale(.6); opacity: 0; } 20% { transform: scale(1.06); opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+.hint { position: fixed; left: 0; right: 0; top: 62%; text-align: center; font-weight: 800; opacity: .9; pointer-events: none; }
+.overlay { position: fixed; inset: 0; display: grid; place-items: center; z-index: 10; padding: 16px; background: rgba(10,14,30,.55); }
+.box { background: var(--panel); color: var(--text); border-radius: 22px; padding: 22px 26px; width: min(400px, 100%); text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.35); max-height: 100%; overflow: auto; }
+.box h1 { margin: 4px 0 6px; font-size: 2.4rem; line-height: 1.05; }
+.box h1 span { color: var(--accent); }
+.box p { color: var(--muted); margin: 6px 0 12px; }
+.btn { display: block; width: 100%; padding: 11px; margin: 8px 0 0; border-radius: 12px; border: 1px solid #e5dfd2; background: #f3efe6; font-weight: 800; font-size: 1rem; color: var(--text); }
+.btn.go { background: var(--accent); color: #fff; border-color: var(--accent); }
+.res { font-size: 3rem; font-weight: 900; color: var(--accent); line-height: 1; }
+.small { font-size: .8rem; color: var(--muted); }
+@media (max-height: 520px) { .box { padding: 14px 18px; } .box h1 { font-size: 1.9rem; } .btn { padding: 8px; } .top { height: 36px; } .top .sc { font-size: 1.2rem; } }
+@media (prefers-reduced-motion: reduce) { .banner { animation-duration: .01s; } }
+</style>
+</head>
+<body>
+<canvas id="cv" aria-label="Brick field"></canvas>
+<div class="top" id="top" hidden>
+  <div><span class="sc" id="score" aria-live="polite">0</span></div>
+  <div class="mid" id="lvl">Level 1</div>
+  <div class="hearts" id="lives" aria-label="3 lives">❤️❤️❤️</div>
+</div>
+<div class="icons"><button class="ib" id="bSound" aria-label="Sound on">🔊</button></div>
+<div class="hint" id="hint" hidden>Move to aim · tap, click or press Space to launch</div>
+<div id="banners"></div>
+
+<div class="overlay" id="oTitle">
+  <div class="box">
+    <div style="font-size:2.4rem">🧱✨</div>
+    <h1>Brick <span>Pop</span></h1>
+    <p>Move the paddle with your mouse, finger or arrow keys. Bounce the ball to pop every brick. Catch falling power-ups!</p>
+    <button class="btn go" id="btnPlay">Play</button>
+    <button class="btn" id="btnDaily">Daily bricks</button>
+    <p class="small" id="note"></p>
+  </div>
+</div>
+<div class="overlay" id="oOver" hidden>
+  <div class="box">
+    <h1 style="font-size:1.8rem">Game over</h1>
+    <div class="res" id="oScore">0</div>
+    <p id="oDetail"></p>
+    <button class="btn go" id="btnAgain">Play again</button>
+    <button class="btn" id="btnShare" hidden>Copy result</button>
+    <button class="btn" id="btnHome">Menu</button>
+  </div>
+</div>
+<script>
+// Brick Pop: パドルで玉を打ち返してブロックを全部壊す。DOM に依存しない規則部分。
+(function (root) {
+  'use strict';
+  const W = 100, H = 130;
+  const COLS = 10, BW = 9.2, BH = 4, GAPX = 0.8, GAPY = 0.9, TOP = 12;
+  const PY = 122, PH = 2.4, PW = 18, PW_WIDE = 28;
+  const BR = 1.6;
+  const LIVES = 3;
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
+  const dailySeed = (date) => fnv('bricks-' + date);
+  function rand(g) { const r = mulberry32(g.rng); const v = r(); g.rng = (g.rng + 0x6D2B79F5) | 0; return v; }
+  const speedFor = (level) => Math.min(105, 62 + level * 3.5);
+
+  // 面の形: 左右対称の模様。段ごとに固さが変わり、後半は壊れない鉄ブロックも混ざる
+  const SHAPES = ['full', 'pyramid', 'diamond', 'checker', 'stripes', 'frame', 'random', 'arch'];
+  function makeBricks(g, level) {
+    const rows = Math.min(9, 4 + Math.floor(level / 2));
+    const shape = level === 1 ? 'full' : SHAPES[Math.floor(rand(g) * SHAPES.length)];
+    const half = COLS / 2;
+    const bricks = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < half; c++) {
+        const m = half - 1 - c; // 中央からの距離
+        let on = true;
+        if (shape === 'pyramid') on = m <= r;
+        else if (shape === 'diamond') on = Math.abs(r - (rows - 1) / 2) + m * 0.9 <= rows / 2 + 0.5;
+        else if (shape === 'checker') on = (r + c) % 2 === 0;
+        else if (shape === 'stripes') on = r % 2 === 0;
+        else if (shape === 'frame') on = r === 0 || r === rows - 1 || c === 0 || m === 0;
+        else if (shape === 'random') on = rand(g) < 0.68;
+        else if (shape === 'arch') on = !(m <= 1 && r >= rows - 3);
+        if (!on) continue;
+        let hp = 1;
+        if (level >= 2 && r < rows * 0.35) hp = 2;
+        if (level >= 3 && r === 0) hp = 3;
+        let steel = level >= 5 && rand(g) < 0.07 && r > 0;
+        const pu = !steel && rand(g) < 0.12 ? ['wide', 'multi', 'slow', 'multi', 'wide', 'life'][Math.floor(rand(g) * (level >= 3 ? 6 : 5))] : null;
+        for (const cc of [c, COLS - 1 - c]) {
+          bricks.push({ x: cc * (BW + GAPX) + GAPX / 2, y: TOP + r * (BH + GAPY), w: BW, h: BH, hp: steel ? 99 : hp, max: hp, steel, pu: cc === c ? pu : null });
+        }
+      }
+    }
+    // 壊せるブロックが少なすぎる面は作り直す
+    if (bricks.filter((b) => !b.steel).length < 12) return makeBricks(g, level);
+    return bricks;
+  }
+  function newBall(g) { return { x: g.paddle.x, y: PY - BR - 0.1, vx: 0, vy: 0, stuck: true }; }
+  function newGame(opts) {
+    const seed = (opts && opts.seed) || 1;
+    const g = { seed, rng: seed, level: (opts && opts.level) || 1, lives: LIVES, score: 0, paddle: { x: W / 2, w: PW }, balls: [], drops: [], timers: { wide: 0, slow: 0 }, bricks: [], over: false, cleared: false, combo: 0, events: [], t: 0 };
+    startLevel(g);
+    return g;
+  }
+  function startLevel(g) {
+    g.bricks = makeBricks(g, g.level);
+    g.balls = [newBall(g)]; g.drops = []; g.timers = { wide: 0, slow: 0 }; g.paddle.w = PW; g.cleared = false; g.combo = 0;
+  }
+  function nextLevel(g) { g.level++; startLevel(g); g.events.push({ type: 'level', level: g.level }); }
+  function launch(g) {
+    let any = false;
+    for (const b of g.balls) if (b.stuck) {
+      const sp = speedFor(g.level);
+      const a = (b.x - g.paddle.x) / (g.paddle.w / 2) * 0.5 + (rand(g) - 0.5) * 0.3;
+      b.vx = Math.sin(a) * sp; b.vy = -Math.cos(a) * sp; b.stuck = false; any = true;
+    }
+    return any;
+  }
+  // パドルの位置（目標）を指定。端を越えない
+  function movePaddle(g, x) { const h = g.paddle.w / 2; g.paddle.x = Math.max(h, Math.min(W - h, x)); for (const b of g.balls) if (b.stuck) b.x = g.paddle.x; }
+  function hitBrick(g, br) {
+    if (br.steel) { g.events.push({ type: 'steel', x: br.x + br.w / 2, y: br.y + br.h / 2 }); return; }
+    br.hp--;
+    g.combo++; g.dry = 0;
+    g.score += 10 * Math.min(g.combo, 8);
+    g.events.push({ type: 'hit', x: br.x + br.w / 2, y: br.y + br.h / 2, broke: br.hp <= 0, max: br.max });
+    if (br.hp <= 0 && br.pu) g.drops.push({ x: br.x + br.w / 2, y: br.y + br.h / 2, kind: br.pu });
+  }
+  function collideBall(g, b) {
+    // 壁
+    if (b.x < BR) { b.x = BR; b.vx = Math.abs(b.vx); g.events.push({ type: 'wall' }); }
+    if (b.x > W - BR) { b.x = W - BR; b.vx = -Math.abs(b.vx); g.events.push({ type: 'wall' }); }
+    if (b.y < BR) { b.y = BR; b.vy = Math.abs(b.vy); g.events.push({ type: 'wall' }); }
+    // パドル: 当たった位置で跳ね返る角度が決まる
+    const p = g.paddle;
+    if (b.vy > 0 && b.y + BR >= PY && b.y + BR <= PY + PH + 2 && b.x >= p.x - p.w / 2 - BR && b.x <= p.x + p.w / 2 + BR) {
+      const off = Math.max(-1, Math.min(1, (b.x - p.x) / (p.w / 2)));
+      g.dry = (g.dry || 0) + 1;
+      // 何度打ち返してもブロックに当たらないときは、同じ軌道を回らないよう少し揺らす
+      const a = Math.max(-1.1, Math.min(1.1, off * 1.05 + (g.dry >= 5 ? (rand(g) - 0.5) * 0.5 : 0)));
+      const sp = Math.hypot(b.vx, b.vy);
+      b.vx = Math.sin(a) * sp; b.vy = -Math.cos(a) * sp; b.y = PY - BR;
+      g.combo = 0;
+      g.events.push({ type: 'paddle' });
+    }
+    // ブロック: 一番深く入った向きで跳ね返す
+    for (const br of g.bricks) {
+      if (br.hp <= 0) continue;
+      const nx = Math.max(br.x, Math.min(b.x, br.x + br.w)), ny = Math.max(br.y, Math.min(b.y, br.y + br.h));
+      const dx = b.x - nx, dy = b.y - ny;
+      if (dx * dx + dy * dy > BR * BR) continue;
+      const pl = b.x + BR - br.x, pr = br.x + br.w - (b.x - BR), pt = b.y + BR - br.y, pb = br.y + br.h - (b.y - BR);
+      const m = Math.min(pl, pr, pt, pb);
+      if (m === pl) { b.x = br.x - BR; b.vx = -Math.abs(b.vx); }
+      else if (m === pr) { b.x = br.x + br.w + BR; b.vx = Math.abs(b.vx); }
+      else if (m === pt) { b.y = br.y - BR; b.vy = -Math.abs(b.vy); }
+      else { b.y = br.y + br.h + BR; b.vy = Math.abs(b.vy); }
+      hitBrick(g, br);
+      break;
+    }
+    // 真横に近い角度にならないようにする
+    const sp = Math.hypot(b.vx, b.vy);
+    if (Math.abs(b.vy) < sp * 0.25) { b.vy = Math.sign(b.vy || -1) * sp * 0.25; b.vx = Math.sign(b.vx) * Math.sqrt(sp * sp - b.vy * b.vy); }
+  }
+  function step(g, dt) {
+    if (g.over) return;
+    g.t += dt;
+    for (const k of ['wide', 'slow']) if (g.timers[k] > 0) g.timers[k] = Math.max(0, g.timers[k] - dt);
+    const targetW = g.timers.wide > 0 ? PW_WIDE : PW;
+    if (g.paddle.w !== targetW) { g.paddle.w += Math.sign(targetW - g.paddle.w) * Math.min(Math.abs(targetW - g.paddle.w), dt * 40); movePaddle(g, g.paddle.x); }
+    const slow = g.timers.slow > 0 ? 0.65 : 1;
+    const N = 6, h = dt / N;
+    for (let s = 0; s < N; s++) {
+      for (const b of g.balls) {
+        if (b.stuck) continue;
+        b.x += b.vx * h * slow; b.y += b.vy * h * slow;
+        collideBall(g, b);
+      }
+    }
+    g.bricks = g.bricks.filter((br) => br.hp > 0);
+    // 落ちた玉
+    const before = g.balls.length;
+    g.balls = g.balls.filter((b) => b.y < H + 4);
+    if (before && !g.balls.length) {
+      g.lives--; g.combo = 0;
+      g.events.push({ type: 'lose', lives: g.lives });
+      if (g.lives <= 0) { g.over = true; g.events.push({ type: 'over' }); return; }
+      g.balls = [newBall(g)]; g.timers = { wide: 0, slow: 0 }; g.drops = [];
+    }
+    // アイテム
+    for (const d of g.drops) d.y += 28 * dt;
+    const p = g.paddle;
+    g.drops = g.drops.filter((d) => {
+      if (d.y >= PY - 1.5 && d.y <= PY + PH + 1.5 && Math.abs(d.x - p.x) <= p.w / 2 + 3) { applyPower(g, d.kind); return false; }
+      return d.y < H + 4;
+    });
+    if (!g.cleared && !g.bricks.some((br) => !br.steel)) {
+      g.cleared = true; g.score += 100 * g.level + 50 * (g.lives - 1);
+      g.events.push({ type: 'clear', level: g.level });
+    }
+  }
+  function applyPower(g, kind) {
+    if (kind === 'wide') g.timers.wide = 12;
+    if (kind === 'slow') g.timers.slow = 10;
+    if (kind === 'life') g.lives = Math.min(5, g.lives + 1);
+    if (kind === 'multi') {
+      const src = g.balls.find((b) => !b.stuck) || g.balls[0];
+      if (src) for (const a of [-0.45, 0.45]) {
+        const sp = Math.hypot(src.vx, src.vy) || speedFor(g.level);
+        const ang = Math.atan2(src.vx, -src.vy || -1) + a;
+        g.balls.push({ x: src.x, y: Math.min(src.y, PY - 4), vx: Math.sin(ang) * sp, vy: -Math.abs(Math.cos(ang) * sp), stuck: false });
+      }
+    }
+    g.score += 25;
+    g.events.push({ type: 'power', kind });
+  }
+  const takeEvents = (g) => { const e = g.events; g.events = []; return e; };
+  const serialize = (g) => JSON.stringify(g);
+  function load(s) { try { const g = JSON.parse(s); if (!g || !Array.isArray(g.bricks) || !g.paddle) return null; return g; } catch (e) { return null; } }
+  const api = { W, H, PY, PH, PW, PW_WIDE, BR, COLS, LIVES, speedFor, newGame, startLevel, nextLevel, launch, movePaddle, step, applyPower, takeEvents, serialize, load, dailySeed, mulberry32, makeBricks };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.BrickPop = api;
+})(this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.BrickPop;
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const TEST = qs.has('test');
+  const MANUAL = qs.has('manual'); // 検証用: 自動で時間を進めない
+  const QUIET = TEST && !qs.has('fx');
+  const TODAY = qs.get('date') || new Date().toISOString().slice(0, 10);
+  const META = 'bp-meta';
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ } },
+  };
+  let meta = { best: 0, bestLevel: 0, daily: {}, sound: true, games: 0 };
+  try { meta = Object.assign(meta, JSON.parse(store.get(META)) || {}); } catch (e) { /* 既定のまま */ }
+  const saveMeta = () => store.set(META, JSON.stringify(meta));
+  let g = null, mode = 'free', playing = false, nextT = 0;
+
+  // ---- 効果音 ----
+  let ac = null;
+  function tone(f, d, type, v, w) {
+    if (!meta.sound || TEST) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (w || 0), o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
+      gn.gain.setValueAtTime(v || 0.06, t); gn.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + d);
+    } catch (e) { /* 音が出せなくても遊べる */ }
+  }
+  const sfx = {
+    paddle: () => tone(330, 0.06, 'triangle', 0.06),
+    wall: () => tone(220, 0.03, 'sine', 0.03),
+    hit: (c) => tone(440 * Math.pow(2, Math.min(c, 12) / 12), 0.08, 'square', 0.035),
+    steel: () => tone(1100, 0.05, 'square', 0.025),
+    power: () => [0, 7, 12].forEach((k, i) => tone(523 * Math.pow(2, k / 12), 0.12, 'triangle', 0.06, i * 0.05)),
+    lose: () => [330, 220].forEach((f, i) => tone(f, 0.25, 'sawtooth', 0.04, i * 0.12)),
+    clear: () => [0, 4, 7, 12, 16].forEach((k, i) => tone(523 * Math.pow(2, k / 12), 0.2, 'triangle', 0.07, i * 0.07)),
+  };
+
+  // ---- 描画 ----
+  const cv = $('cv'), cx = cv.getContext('2d');
+  let cw = 0, ch = 0;
+  const view = { s: 4, ox: 0, oy: 50 };
+  function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cw = window.innerWidth; ch = window.innerHeight;
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const top = ch < 520 ? 38 : 48;
+    view.s = Math.min((cw - 12) / G.W, (ch - top - 6) / G.H);
+    view.ox = (cw - G.W * view.s) / 2; view.oy = top + (ch - top - 6 - G.H * view.s) / 2;
+  }
+  const X = (x) => view.ox + x * view.s, Y = (y) => view.oy + y * view.s;
+  const parts = [];
+  const trail = [];
+  function rr(x, y, w, h, r) { cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
+  const HUES = [350, 20, 45, 140, 190, 220, 265, 300, 330];
+  const PU = { wide: ['↔', '#4fc3f7'], multi: ['••', '#ffb74d'], slow: ['◷', '#81c784'], life: ['♥', '#ff5d8f'] };
+  function draw() {
+    cx.fillStyle = '#16213e'; cx.fillRect(0, 0, cw, ch);
+    // 盤面
+    const s = view.s;
+    const grd = cx.createLinearGradient(0, Y(0), 0, Y(G.H));
+    grd.addColorStop(0, '#1f2b52'); grd.addColorStop(1, '#121a33');
+    cx.fillStyle = grd; rr(X(0) - 4, Y(0) - 4, G.W * s + 8, G.H * s + 8, 10); cx.fill();
+    cx.strokeStyle = 'rgba(255,255,255,.12)'; cx.lineWidth = 2; cx.stroke();
+    if (!g) return;
+    for (const b of g.bricks) {
+      const row = Math.round((b.y - 12) / 4.9);
+      let fill;
+      if (b.steel) fill = '#8d99ae';
+      else if (b.max === 3) fill = b.hp === 3 ? '#ffd166' : b.hp === 2 ? '#f4b942' : '#e09f3e';
+      else fill = `hsl(${HUES[row % HUES.length]},${b.hp < b.max ? 55 : 75}%,${b.hp < b.max ? 52 : 62}%)`;
+      cx.fillStyle = fill; rr(X(b.x), Y(b.y), b.w * s, b.h * s, s * 0.8); cx.fill();
+      cx.fillStyle = 'rgba(255,255,255,.28)'; rr(X(b.x) + 2, Y(b.y) + 2, b.w * s - 4, b.h * s * 0.32, s * 0.5); cx.fill();
+      if (b.steel) { cx.fillStyle = '#5c677d'; for (const fx of [0.15, 0.85]) { cx.beginPath(); cx.arc(X(b.x + b.w * fx), Y(b.y + b.h / 2), s * 0.45, 0, 7); cx.fill(); } }
+      if (!b.steel && b.hp < b.max) { cx.strokeStyle = 'rgba(0,0,0,.35)'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(X(b.x + b.w * 0.3), Y(b.y)); cx.lineTo(X(b.x + b.w * 0.45), Y(b.y + b.h * 0.6)); cx.lineTo(X(b.x + b.w * 0.6), Y(b.y + b.h)); cx.stroke(); }
+      if (b.pu) { cx.fillStyle = 'rgba(255,255,255,.85)'; cx.beginPath(); cx.arc(X(b.x + b.w / 2), Y(b.y + b.h / 2), s * 0.6, 0, 7); cx.fill(); }
+    }
+    for (const d of g.drops) {
+      const [t, c] = PU[d.kind];
+      cx.fillStyle = c; rr(X(d.x - 3.4), Y(d.y - 1.6), 6.8 * s, 3.2 * s, 1.6 * s); cx.fill();
+      cx.fillStyle = '#fff'; cx.font = `900 ${Math.round(s * 2.4)}px system-ui`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(t, X(d.x), Y(d.y) + 1);
+    }
+    // パドル
+    const p = g.paddle;
+    const pg = cx.createLinearGradient(0, Y(G.PY), 0, Y(G.PY + G.PH));
+    pg.addColorStop(0, '#ff8fb1'); pg.addColorStop(1, '#e0457b');
+    cx.fillStyle = pg; rr(X(p.x - p.w / 2), Y(G.PY), p.w * s, G.PH * s, G.PH * s / 2); cx.fill();
+    // 玉と軌跡
+    for (const t of trail) { cx.fillStyle = `rgba(255,255,255,${t.a * 0.25})`; cx.beginPath(); cx.arc(X(t.x), Y(t.y), G.BR * s * t.a, 0, 7); cx.fill(); }
+    for (const b of g.balls) { cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(X(b.x), Y(b.y), G.BR * s, 0, 7); cx.fill(); cx.fillStyle = '#ffd1e0'; cx.beginPath(); cx.arc(X(b.x) - G.BR * s * 0.3, Y(b.y) - G.BR * s * 0.3, G.BR * s * 0.35, 0, 7); cx.fill(); }
+    for (const q of parts) { cx.globalAlpha = Math.max(0, q.life); cx.fillStyle = q.c; cx.fillRect(q.x, q.y, q.sz, q.sz); }
+    cx.globalAlpha = 1;
+    // 効果の残り時間
+    let i = 0;
+    for (const [k, c] of [['wide', '#4fc3f7'], ['slow', '#81c784']]) {
+      const t = g.timers[k];
+      if (t > 0) { cx.fillStyle = c; cx.fillRect(X(2), Y(G.H - 2.4 - i * 1.6), (t / (k === 'wide' ? 12 : 10)) * 20 * s, s); i++; }
+    }
+  }
+  function burst(x, y, c, n) {
+    if (QUIET) return;
+    for (let i = 0; i < n; i++) parts.push({ x: X(x), y: Y(y), vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.7) * 260, sz: 3 + Math.random() * 4, life: 1, c });
+  }
+  function handleEvents() {
+    for (const e of G.takeEvents(g)) {
+      if (e.type === 'paddle') sfx.paddle();
+      else if (e.type === 'wall') sfx.wall();
+      else if (e.type === 'hit') { sfx.hit(g.combo); if (e.broke) burst(e.x, e.y, e.max === 3 ? '#ffd166' : '#ffffff', 10); hud(); }
+      else if (e.type === 'steel') sfx.steel();
+      else if (e.type === 'power') { sfx.power(); hud(); }
+      else if (e.type === 'lose') { sfx.lose(); hud(); if (e.lives > 0) $('hint').hidden = false; }
+      else if (e.type === 'over') gameOver();
+      else if (e.type === 'clear') { sfx.clear(); banner(`Level ${e.level} clear!`); nextT = 1.3; }
+    }
+  }
+  function banner(text) { const b = document.createElement('div'); b.className = 'banner'; b.textContent = text; $('banners').appendChild(b); setTimeout(() => b.remove(), 1400); }
+
+  // ---- 入力 ----
+  const keys = {};
+  function aimAt(clientX) { if (g && playing) G.movePaddle(g, (clientX - view.ox) / view.s); }
+  window.addEventListener('pointermove', (e) => aimAt(e.clientX));
+  window.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button') || !$('oTitle').hidden || !$('oOver').hidden) return;
+    e.preventDefault(); aimAt(e.clientX); launch();
+  });
+  function launch() { if (g && playing && !g.cleared && G.launch(g)) $('hint').hidden = true; }
+  document.addEventListener('keydown', (e) => {
+    if (!playing) return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'a' || e.key === 'd') { keys[e.key] = true; e.preventDefault(); }
+    if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowUp') { e.preventDefault(); launch(); }
+  });
+  document.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+  // ---- 進行 ----
+  function tick(dt) {
+    if (g && playing) {
+      const dir = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0);
+      if (dir) G.movePaddle(g, g.paddle.x + dir * 110 * dt);
+      if (nextT > 0) { nextT -= dt; if (nextT <= 0) { G.nextLevel(g); G.takeEvents(g); hud(); $('hint').hidden = false; } }
+      else G.step(g, dt);
+      handleEvents();
+      for (const b of g.balls) if (!b.stuck && !QUIET) trail.push({ x: b.x, y: b.y, a: 1 });
+    }
+    for (const t of trail) t.a -= dt * 5;
+    while (trail.length && trail[0].a <= 0) trail.shift();
+    for (const q of parts) { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 700 * dt; q.life -= dt * 1.8; }
+    for (let i = parts.length - 1; i >= 0; i--) if (parts[i].life <= 0) parts.splice(i, 1);
+    draw();
+  }
+  let last = 0;
+  function frame(t) { const dt = Math.min(1 / 30, (t - last) / 1000 || 0); last = t; tick(dt); requestAnimationFrame(frame); }
+  function hud() {
+    $('score').textContent = g.score;
+    $('lvl').textContent = mode === 'daily' ? `Daily · Level ${g.level}` : `Level ${g.level}`;
+    $('lives').textContent = '❤️'.repeat(Math.max(0, g.lives));
+    $('lives').setAttribute('aria-label', `${g.lives} lives`);
+  }
+  function start(m) {
+    mode = m;
+    g = G.newGame({ seed: m === 'daily' ? G.dailySeed(TODAY) : (qs.has('seed') ? +qs.get('seed') : Math.floor(Math.random() * 2 ** 31) + 1), level: qs.has('level') ? +qs.get('level') : 1 });
+    playing = true; nextT = 0; parts.length = 0; trail.length = 0;
+    $('oTitle').hidden = true; $('oOver').hidden = true; $('top').hidden = false; $('hint').hidden = false;
+    hud(); draw();
+  }
+  function gameOver() {
+    playing = false;
+    meta.games++;
+    let note;
+    if (mode === 'daily') {
+      if (!meta.daily[TODAY]) { meta.daily[TODAY] = { score: g.score, level: g.level }; note = 'Your daily score is saved.'; }
+      else note = `Practice run. Your daily: ${meta.daily[TODAY].score}.`;
+    } else { note = g.score > meta.best ? 'New best!' : `Best: ${meta.best}`; meta.best = Math.max(meta.best, g.score); }
+    meta.bestLevel = Math.max(meta.bestLevel, g.level);
+    saveMeta();
+    $('oScore').textContent = g.score;
+    $('oDetail').textContent = `Reached level ${g.level}. ${note}`;
+    $('btnShare').hidden = mode !== 'daily'; $('btnShare').textContent = 'Copy result';
+    $('hint').hidden = true;
+    setTimeout(() => { $('oOver').hidden = false; $('btnAgain').focus(); }, TEST ? 0 : 700);
+  }
+  function showTitle() {
+    playing = false;
+    const d = meta.daily[TODAY];
+    $('note').textContent = d ? `Today's daily: ${d.score} points (level ${d.level}). You can still practice.` : (meta.best ? `Best: ${meta.best}. ` : '') + 'The daily bricks are the same for everyone; only your first try counts.';
+    $('oOver').hidden = true; $('oTitle').hidden = false; $('hint').hidden = true;
+    $('btnPlay').focus();
+  }
+  $('btnPlay').addEventListener('click', () => start('free'));
+  $('btnDaily').addEventListener('click', () => start('daily'));
+  $('btnAgain').addEventListener('click', () => start(mode));
+  $('btnHome').addEventListener('click', showTitle);
+  $('btnShare').addEventListener('click', () => {
+    const url = globalThis.BP_SHARE_URL || location.origin + location.pathname;
+    const d = meta.daily[TODAY] || { score: g.score, level: g.level };
+    const text = `Brick Pop daily ${TODAY}: ${d.score} points, level ${d.level} 🧱\n${url}`;
+    let done = false;
+    const fin = (ok) => { if (!done) { done = true; $('btnShare').textContent = ok ? 'Copied!' : text; } };
+    setTimeout(() => fin(false), 1500); // 許可がない環境では文面を見せる
+    try { navigator.clipboard.writeText(text).then(() => fin(true), () => fin(false)); } catch (e) { fin(false); }
+  });
+  function renderSound() { $('bSound').textContent = meta.sound ? '🔊' : '🔇'; $('bSound').setAttribute('aria-label', meta.sound ? 'Sound on' : 'Sound off'); }
+  $('bSound').addEventListener('click', () => { meta.sound = !meta.sound; saveMeta(); renderSound(); });
+  window.addEventListener('resize', () => { resize(); draw(); });
+  resize(); renderSound(); showTitle(); draw();
+  if (TEST) window.__bp = { get game() { return g; }, G, start, launch, tick(dt, n) { for (let i = 0; i < (n || 1); i++) tick(dt); }, view }; // 検証用
+  if (!MANUAL) requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
