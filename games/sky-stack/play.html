@@ -99,7 +99,8 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
     const top = g.tower[g.tower.length - 1];
     const fromLeft = g.tower.length % 2 === 1;
     const sp = speedAt(g.score) * (0.92 + rand(g) * 0.16);
-    const x = fromLeft ? -top.w - 6 - rand(g) * 10 : W + 6 + rand(g) * 10;
+    // 塔の少し横から出す（待ち時間を短く）
+    const x = fromLeft ? top.x - 52 - rand(g) * 10 : top.x + 52 + rand(g) * 10;
     g.cur = { x, w: top.w, v: fromLeft ? sp : -sp, hue: (g.hue0 + g.tower.length * 9) % 360 };
   }
   // 板は画面の端を少し越えたところで折り返す

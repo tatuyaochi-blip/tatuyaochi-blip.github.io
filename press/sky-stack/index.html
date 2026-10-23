@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sky Stack</title>
+<meta name="description" content="A one-tap stacking game. Drop each sliding block onto the tower, trim the overhang and build as high as you can.">
+<meta name="theme-color" content="#7ec8f0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='78' font-size='80' text-anchor='middle'%3E%F0%9F%8F%97%3C/text%3E%3C/svg%3E">
+<style>
+:root { --ink: #ffffff; --panel: #fffdf8; --text: #22313f; --muted: #66788a; --accent: #ff7a45; --focus: #2563eb; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #7ec8f0; }
+body { color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hud { position: fixed; left: 0; right: 0; top: calc(10px + env(safe-area-inset-top)); text-align: center; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.score { font-size: clamp(2.6rem, 9vh, 5rem); font-weight: 900; line-height: 1; }
+.sub { font-size: .9rem; opacity: .9; font-weight: 700; }
+.combo { font-weight: 900; color: #fff3a8; font-size: 1.2rem; min-height: 1.5em; }
+.icons { position: fixed; right: calc(10px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); display: flex; gap: 8px; z-index: 5; }
+.ib { width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,255,255,.5); background: rgba(255,255,255,.22); color: #fff; font-size: 1.1rem; }
+.hint { position: fixed; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center; font-weight: 800; opacity: .9; pointer-events: none; text-shadow: 0 2px 6px rgba(0,0,0,.25); }
+.overlay { position: fixed; inset: 0; display: grid; place-items: center; z-index: 10; padding: 16px; background: rgba(20,40,70,.25); }
+.box { background: var(--panel); color: var(--text); border-radius: 22px; padding: 22px 26px; width: min(400px, 100%); text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.25); max-height: 100%; overflow: auto; }
+.box h1 { margin: 4px 0 6px; font-size: 2.4rem; line-height: 1.05; }
+.box h1 span { color: var(--accent); }
+.box p { color: var(--muted); margin: 6px 0 12px; }
+.btn { display: block; width: 100%; padding: 11px; margin: 8px 0 0; border-radius: 12px; border: 1px solid #e3ddd0; background: #f3efe6; font-weight: 800; font-size: 1rem; color: var(--text); }
+.btn.go { background: var(--accent); color: #fff; border-color: var(--accent); }
+.res { font-size: 3rem; font-weight: 900; color: var(--accent); line-height: 1; }
+.small { font-size: .8rem; color: var(--muted); }
+@media (max-height: 520px) { .box { padding: 14px 18px; } .box h1 { font-size: 1.9rem; } .btn { padding: 8px; } }
+</style>
+</head>
+<body>
+<canvas id="cv" aria-label="Tower"></canvas>
+<div class="hud" id="hud" hidden>
+  <div class="score" id="score" aria-live="polite">0</div>
+  <div class="sub" id="sub">Best 0</div>
+  <div class="combo" id="combo"></div>
+</div>
+<div class="icons"><button class="ib" id="bSound" aria-label="Sound on">🔊</button></div>
+<div class="hint" id="hint" hidden>Tap, click or press Space to drop</div>
+
+<div class="overlay" id="oTitle">
+  <div class="box">
+    <div style="font-size:2.4rem">🏗️☁️</div>
+    <h1>Sky <span>Stack</span></h1>
+    <p>Drop each sliding block onto the tower. Whatever hangs over the edge falls off. Land it perfectly to keep your width!</p>
+    <button class="btn go" id="btnPlay">Play</button>
+    <button class="btn" id="btnDaily">Daily tower</button>
+    <p class="small" id="note"></p>
+  </div>
+</div>
+<div class="overlay" id="oOver" hidden>
+  <div class="box">
+    <h1 style="font-size:1.8rem" id="oTitleTxt">Tower complete!</h1>
+    <div class="res" id="oScore">0</div>
+    <p id="oDetail"></p>
+    <button class="btn go" id="btnAgain">Play again</button>
+    <button class="btn" id="btnShare" hidden>Copy result</button>
+    <button class="btn" id="btnHome">Menu</button>
+  </div>
+</div>
+<script>
+// Sky Stack: 左右に動く板を1回押して落とし、ずれた分は切り落として高く積む。DOM に依存しない規則部分。
+(function (root) {
+  'use strict';
+  const W = 100;          // 横幅の単位
+  const BH = 8;           // 板1枚の高さ
+  const START_W = 46;
+  const PERFECT = 1.6;    // これ以内のずれは「ぴったり」
+  const GROW_AFTER = 3;   // ぴったりが続くと幅が戻る
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
+  const dailySeed = (date) => fnv('stack-' + date);
+  function rand(g) { const r = mulberry32(g.rng); const v = r(); g.rng = (g.rng + 0x6D2B79F5) | 0; return v; }
+  const speedAt = (h) => Math.min(125, 48 + h * 1.6);
+
+  function newGame(opts) {
+    const seed = (opts && opts.seed) || 1;
+    const g = { seed, rng: seed, tower: [{ x: (W - START_W) / 2, w: START_W, hue: 0 }], cur: null, debris: [], score: 0, combo: 0, best: 0, perfects: 0, over: false, t: 0, hue0: Math.floor(mulberry32(seed)() * 360) };
+    g.tower[0].hue = g.hue0;
+    spawn(g);
+    return g;
+  }
+  // 次の板。左右どちらから来るかと最初の位置に少しだけ揺らぎをつける
+  function spawn(g) {
+    const top = g.tower[g.tower.length - 1];
+    const fromLeft = g.tower.length % 2 === 1;
+    const sp = speedAt(g.score) * (0.92 + rand(g) * 0.16);
+    // 塔の少し横から出す（待ち時間を短く）
+    const x = fromLeft ? top.x - 52 - rand(g) * 10 : top.x + 52 + rand(g) * 10;
+    g.cur = { x, w: top.w, v: fromLeft ? sp : -sp, hue: (g.hue0 + g.tower.length * 9) % 360 };
+  }
+  // 板は画面の端を少し越えたところで折り返す
+  function step(g, dt) {
+    g.t += dt;
+    if (g.cur && !g.over) {
+      const c = g.cur;
+      c.x += c.v * dt;
+      const lo = -c.w * 0.6 - 8, hi = W - c.w * 0.4 + 8;
+      if (c.x < lo && c.v < 0) { c.x = lo + (lo - c.x); c.v = -c.v; }
+      if (c.x > hi && c.v > 0) { c.x = hi - (c.x - hi); c.v = -c.v; }
+    }
+    for (const d of g.debris) { d.vy += 260 * dt; d.y -= d.vy * dt; d.x += d.vx * dt; d.rot += d.vr * dt; }
+    g.debris = g.debris.filter((d) => d.y > -400);
+  }
+  // 落とす。結果: { perfect, cut, miss }
+  function drop(g) {
+    if (g.over || !g.cur) return null;
+    const top = g.tower[g.tower.length - 1];
+    const c = g.cur;
+    const y = g.tower.length * BH;
+    const dx = c.x - top.x;
+    if (Math.abs(dx) <= PERFECT) {
+      g.combo++; g.perfects++;
+      let w = top.w;
+      if (g.combo >= GROW_AFTER) w = Math.min(START_W, w + 2.5);
+      const x = top.x - (w - top.w) / 2;
+      g.tower.push({ x, w, hue: c.hue });
+      g.score++;
+      g.cur = null; spawn(g);
+      return { perfect: true, cut: 0, miss: false, combo: g.combo, y };
+    }
+    g.combo = 0;
+    const l = Math.max(c.x, top.x), r = Math.min(c.x + c.w, top.x + top.w);
+    if (r - l <= 0) {
+      g.debris.push({ x: c.x, y, w: c.w, vx: c.v * 0.3, vy: 0, rot: 0, vr: c.v > 0 ? 1.5 : -1.5, hue: c.hue });
+      g.cur = null; g.over = true;
+      return { perfect: false, cut: c.w, miss: true, y };
+    }
+    // はみ出した分が落ちる
+    if (c.x < l) g.debris.push({ x: c.x, y, w: l - c.x, vx: -20, vy: 0, rot: 0, vr: -1.2, hue: c.hue });
+    if (c.x + c.w > r) g.debris.push({ x: r, y, w: c.x + c.w - r, vx: 20, vy: 0, rot: 0, vr: 1.2, hue: c.hue });
+    g.tower.push({ x: l, w: r - l, hue: c.hue });
+    g.score++;
+    g.cur = null; spawn(g);
+    return { perfect: false, cut: c.w - (r - l), miss: false, y };
+  }
+  const serialize = (g) => JSON.stringify(g);
+  function load(s) {
+    try { const g = JSON.parse(s); if (!g || !Array.isArray(g.tower) || !g.tower.length) return null; return g; } catch (e) { return null; }
+  }
+  const api = { W, BH, START_W, PERFECT, GROW_AFTER, speedAt, newGame, step, drop, spawn, serialize, load, dailySeed, mulberry32 };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.SkyStack = api;
+})(this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.SkyStack;
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const TEST = qs.has('test');
+  const MANUAL = qs.has('manual'); // 検証用: 自動で時間を進めない
+  const TODAY = qs.get('date') || new Date().toISOString().slice(0, 10);
+  const META = 'ss-meta';
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ } },
+  };
+  let meta = { best: 0, daily: {}, sound: true, games: 0 };
+  try { meta = Object.assign(meta, JSON.parse(store.get(META)) || {}); } catch (e) { /* 既定のまま */ }
+  const saveMeta = () => store.set(META, JSON.stringify(meta));
+  let g = null, mode = 'free', playing = false;
+
+  // ---- 効果音 ----
+  let ac = null;
+  function tone(f, d, type, v, w) {
+    if (!meta.sound || TEST) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (w || 0), o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
+      gn.gain.setValueAtTime(v || 0.07, t); gn.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + d);
+    } catch (e) { /* 音が出せなくても遊べる */ }
+  }
+  const sfx = {
+    place: () => tone(220, 0.09, 'triangle', 0.1),
+    perfect: (n) => { const f = 392 * Math.pow(2, Math.min(n - 1, 12) / 12); tone(f, 0.18, 'triangle', 0.08); tone(f * 1.5, 0.18, 'sine', 0.04, 0.04); },
+    over: () => [330, 262, 196].forEach((f, i) => tone(f, 0.28, 'sawtooth', 0.035, i * 0.13)),
+  };
+
+  // ---- 描画 ----
+  const cv = $('cv'), cx = cv.getContext('2d');
+  let cw = 0, ch = 0, dpr = 1;
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    cw = window.innerWidth; ch = window.innerHeight;
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  const cam = { y: 0, s: 6, flash: 0 };
+  const baseScale = () => Math.min(cw / 140, ch / 125);
+  const groundY = () => ch * 0.86;
+  // 高さで空の色が変わる: 昼 → 夕焼け → 夜
+  const SKY = [[0, [126, 200, 240], [214, 240, 252]], [30, [255, 160, 120], [255, 214, 165]], [60, [60, 50, 120], [200, 120, 150]], [100, [12, 16, 48], [40, 40, 100]]];
+  function skyAt(h) {
+    let i = 0; while (i < SKY.length - 2 && h > SKY[i + 1][0]) i++;
+    const [h0, a0, b0] = SKY[i], [h1, a1, b1] = SKY[i + 1];
+    const k = Math.max(0, Math.min(1, (h - h0) / (h1 - h0)));
+    const mix = (a, b) => a.map((v, j) => Math.round(v + (b[j] - v) * k));
+    return [mix(a0, a1), mix(b0, b1)];
+  }
+  const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+  const stars = Array.from({ length: 70 }, (_, i) => ({ x: (i * 73.13) % 1, y: (i * 41.7) % 1, r: 0.6 + (i % 3) * 0.5 }));
+  function slab(x, y, w, hue, s, alpha) {
+    // x,y はワールド座標（y は下端）。奥行きのある板として描く
+    const X = cw / 2 + (x - G.W / 2) * s, Y = groundY() - (y - cam.y) * s, Wd = w * s, H = G.BH * s, D = Math.max(3, H * 0.45);
+    cx.globalAlpha = alpha == null ? 1 : alpha;
+    cx.fillStyle = `hsl(${hue},62%,48%)`; // 側面
+    cx.beginPath(); cx.moveTo(X + Wd, Y); cx.lineTo(X + Wd + D * 0.6, Y - D * 0.6); cx.lineTo(X + Wd + D * 0.6, Y - H - D * 0.6); cx.lineTo(X + Wd, Y - H); cx.fill();
+    cx.fillStyle = `hsl(${hue},70%,62%)`; // 正面
+    cx.fillRect(X, Y - H, Wd, H);
+    cx.fillStyle = `hsl(${hue},80%,76%)`; // 上面
+    cx.beginPath(); cx.moveTo(X, Y - H); cx.lineTo(X + D * 0.6, Y - H - D * 0.6); cx.lineTo(X + Wd + D * 0.6, Y - H - D * 0.6); cx.lineTo(X + Wd, Y - H); cx.fill();
+    cx.globalAlpha = 1;
+  }
+  function draw() {
+    const [top, bot] = skyAt(cam.y / G.BH);
+    const grd = cx.createLinearGradient(0, 0, 0, ch);
+    grd.addColorStop(0, rgb(top)); grd.addColorStop(1, rgb(bot));
+    cx.fillStyle = grd; cx.fillRect(0, 0, cw, ch);
+    const night = Math.max(0, Math.min(1, (cam.y / G.BH - 50) / 40));
+    if (night > 0) { cx.fillStyle = `rgba(255,255,255,${0.8 * night})`; for (const st of stars) { cx.beginPath(); cx.arc(st.x * cw, ((st.y * ch + cam.y * cam.s * 0.15) % ch), st.r, 0, 7); cx.fill(); } }
+    // 雲（高さごとに並ぶ）
+    cx.fillStyle = 'rgba(255,255,255,.75)';
+    for (let k = 0; k < 14; k++) {
+      const wy = 20 + k * 38, sx = ((k * 0.37 + (g ? g.t : 0) * 0.01 * (k % 2 ? 1 : -1)) % 1 + 1) % 1;
+      const Y = groundY() - (wy - cam.y) * cam.s * 0.6;
+      if (Y < -60 || Y > ch + 60) continue;
+      const X = sx * (cw + 200) - 100, r = 18 + (k % 3) * 8;
+      cx.beginPath(); cx.arc(X, Y, r, 0, 7); cx.arc(X + r, Y - r * 0.4, r * 0.9, 0, 7); cx.arc(X + r * 2, Y, r * 0.8, 0, 7); cx.fill();
+    }
+    // 地面
+    const gy = groundY() + cam.y * cam.s;
+    if (gy < ch) { cx.fillStyle = '#5aa86a'; cx.fillRect(0, gy, cw, ch - gy); cx.fillStyle = '#4a9159'; cx.fillRect(0, gy, cw, 6); }
+    if (!g) return;
+    const s = cam.s;
+    // 土台
+    slab(g.tower[0].x - 6, -G.BH, g.tower[0].w + 12, 210, s);
+    g.tower.forEach((b, i) => {
+      const Y = groundY() - (i * G.BH - cam.y) * s;
+      if (Y < -50 || Y - G.BH * s > ch + 50) return;
+      slab(b.x, i * G.BH, b.w, b.hue, s);
+    });
+    // ぴったりの光
+    if (cam.flash > 0) {
+      const i = g.tower.length - 1, b = g.tower[i];
+      const X = cw / 2 + (b.x - G.W / 2) * s, Y = groundY() - (i * G.BH - cam.y) * s;
+      cx.strokeStyle = `rgba(255,255,255,${cam.flash})`; cx.lineWidth = 3;
+      const pad = (1 - cam.flash) * 14;
+      cx.strokeRect(X - pad, Y - G.BH * s - pad, b.w * s + pad * 2, G.BH * s + pad * 2);
+    }
+    if (g.cur) slab(g.cur.x, g.tower.length * G.BH, g.cur.w, g.cur.hue, s);
+    for (const d of g.debris) {
+      const X = cw / 2 + (d.x + d.w / 2 - G.W / 2) * s, Y = groundY() - (d.y - cam.y) * s;
+      cx.save(); cx.translate(X, Y); cx.rotate(d.rot); cx.translate(-X, -Y);
+      slab(d.x, d.y, d.w, d.hue, s, 0.9);
+      cx.restore();
+    }
+  }
+  function updateCam(dt) {
+    if (!g) return;
+    const bs = baseScale();
+    const towerTop = g.tower.length * G.BH;
+    let ts = bs, ty;
+    if (g.over) {
+      // 終わったら塔全体が見えるまで引く
+      ts = Math.min(bs, (groundY() - ch * 0.12) / (towerTop + G.BH * 2));
+      ty = 0;
+    } else {
+      const visible = groundY() / bs;
+      ty = Math.max(0, towerTop + G.BH * 1.5 - visible * 0.62);
+    }
+    const k = Math.min(1, dt * 4);
+    cam.s += (ts - cam.s) * k; cam.y += (ty - cam.y) * k;
+    cam.flash = Math.max(0, cam.flash - dt * 2.5);
+  }
+
+  // ---- 進行 ----
+  let last = 0;
+  function frame(t) {
+    const dt = Math.min(1 / 30, (t - last) / 1000 || 0);
+    last = t;
+    if (g && playing) G.step(g, dt);
+    else if (g) G.step(g, dt); // 終了後も破片は落ちる
+    updateCam(dt); draw();
+    requestAnimationFrame(frame);
+  }
+  function hud() {
+    $('score').textContent = g.score;
+    const best = mode === 'daily' ? (meta.daily[TODAY] != null ? `Daily ${meta.daily[TODAY]}` : 'Daily tower') : `Best ${Math.max(meta.best, g.score)}`;
+    $('sub').textContent = best;
+  }
+  function doDrop() {
+    if (!g || !playing) return;
+    const r = G.drop(g);
+    if (!r) return;
+    $('hint').hidden = true;
+    if (r.miss) { gameOver(); return; }
+    if (r.perfect) { sfx.perfect(r.combo); cam.flash = 1; $('combo').textContent = r.combo > 1 ? `Perfect ×${r.combo}` : 'Perfect!'; }
+    else { sfx.place(); $('combo').textContent = ''; }
+    if (navigator.vibrate && !TEST) try { navigator.vibrate(r.perfect ? 15 : 8); } catch (e) { /* 振動なしでよい */ }
+    hud();
+  }
+  function start(m) {
+    mode = m;
+    g = G.newGame({ seed: m === 'daily' ? G.dailySeed(TODAY) : (qs.has('seed') ? +qs.get('seed') : Math.floor(Math.random() * 2 ** 31) + 1) });
+    cam.y = 0; cam.s = baseScale();
+    playing = true;
+    $('oTitle').hidden = true; $('oOver').hidden = true; $('hud').hidden = false; $('combo').textContent = '';
+    $('hint').hidden = meta.games > 2;
+    hud();
+  }
+  function gameOver() {
+    playing = false;
+    sfx.over();
+    meta.games++;
+    let note;
+    if (mode === 'daily') {
+      if (meta.daily[TODAY] == null) { meta.daily[TODAY] = g.score; note = 'Your daily height is saved. A new tower tomorrow!'; }
+      else note = `Practice run. Your daily: ${meta.daily[TODAY]} floors.`;
+    } else { note = g.score > meta.best ? 'New best!' : `Best: ${meta.best}`; meta.best = Math.max(meta.best, g.score); }
+    saveMeta();
+    $('oTitleTxt').textContent = g.score >= 50 ? 'Sky high!' : g.score >= 20 ? 'Nice tower!' : 'Tower complete!';
+    $('oScore').textContent = g.score;
+    $('oDetail').textContent = `${g.score} floors · ${g.perfects} perfect drops. ${note}`;
+    $('btnShare').hidden = mode !== 'daily'; $('btnShare').textContent = 'Copy result';
+    $('combo').textContent = '';
+    setTimeout(() => { $('oOver').hidden = false; $('btnAgain').focus(); }, TEST ? 0 : 1100);
+  }
+  function showTitle() {
+    playing = false;
+    const d = meta.daily[TODAY];
+    $('note').textContent = d != null ? `Today's daily: ${d} floors. You can still practice.` : 'Everyone gets the same speeds today. Only your first try counts.';
+    $('oOver').hidden = true; $('oTitle').hidden = false; $('hud').hidden = true; $('hint').hidden = true;
+    $('btnPlay').focus();
+  }
+  // 画面のどこを押しても落とす（ボタンの上は除く）
+  window.addEventListener('pointerdown', (e) => { if (e.target.closest('button') || !$('oTitle').hidden || !$('oOver').hidden) return; e.preventDefault(); doDrop(); });
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowDown') && playing) { e.preventDefault(); doDrop(); }
+  });
+  $('btnPlay').addEventListener('click', () => start('free'));
+  $('btnDaily').addEventListener('click', () => start('daily'));
+  $('btnAgain').addEventListener('click', () => start(mode));
+  $('btnHome').addEventListener('click', showTitle);
+  $('btnShare').addEventListener('click', () => {
+    const url = globalThis.SS_SHARE_URL || location.origin + location.pathname;
+    const text = `Sky Stack daily ${TODAY}: ${meta.daily[TODAY] ?? g.score} floors 🏗️\n${url}`;
+    let done = false;
+    const fin = (ok) => { if (!done) { done = true; $('btnShare').textContent = ok ? 'Copied!' : text; } };
+    setTimeout(() => fin(false), 1500); // 許可がない環境では文面を見せる
+    try { navigator.clipboard.writeText(text).then(() => fin(true), () => fin(false)); } catch (e) { fin(false); }
+  });
+  function renderSound() { $('bSound').textContent = meta.sound ? '🔊' : '🔇'; $('bSound').setAttribute('aria-label', meta.sound ? 'Sound on' : 'Sound off'); }
+  $('bSound').addEventListener('click', () => { meta.sound = !meta.sound; saveMeta(); renderSound(); });
+  window.addEventListener('resize', resize);
+  resize(); renderSound(); showTitle();
+  if (TEST) window.__ss = { get game() { return g; }, G, drop: doDrop, start, tick(dt, n) { for (let i = 0; i < (n || 1); i++) { if (g) G.step(g, dt); updateCam(dt); } draw(); }, cam }; // 検証用
+  if (!MANUAL) requestAnimationFrame(frame); else draw();
+})();
+</script>
+</body>
+</html>
