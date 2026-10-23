@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Snack Snake</title>
+<meta name="description" content="A bright snake game. Eat snacks to grow, chain quick bites for combos, grab golden treats and dodge the rocks.">
+<meta name="theme-color" content="#2f6b3f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='78' font-size='80' text-anchor='middle'%3E%F0%9F%90%8D%3C/text%3E%3C/svg%3E">
+<style>
+:root { --panel: #fffdf6; --text: #1f3326; --muted: #5d7464; --accent: #ff7a45; --focus: #2563eb; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #2f6b3f; }
+body { color: #fff; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hud { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); display: flex; gap: 14px; align-items: baseline; pointer-events: none; text-shadow: 0 2px 6px rgba(0,0,0,.3); }
+.score { font-size: 1.9rem; font-weight: 900; line-height: 1; }
+.sub { font-size: .85rem; font-weight: 700; opacity: .9; }
+.combo { font-weight: 900; color: #ffe066; }
+.icons { position: fixed; right: calc(10px + env(safe-area-inset-right)); top: calc(8px + env(safe-area-inset-top)); display: flex; gap: 8px; z-index: 5; }
+.ib { width: 40px; height: 40px; border-radius: 12px; border: 1px solid rgba(255,255,255,.45); background: rgba(255,255,255,.18); color: #fff; font-size: 1.05rem; }
+.hint { position: fixed; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom)); text-align: center; font-weight: 800; pointer-events: none; text-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.overlay { position: fixed; inset: 0; display: grid; place-items: center; z-index: 10; padding: 16px; background: rgba(10,30,15,.4); }
+.box { background: var(--panel); color: var(--text); border-radius: 22px; padding: 22px 26px; width: min(400px, 100%); text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.3); max-height: 100%; overflow: auto; }
+.box h1 { margin: 4px 0 6px; font-size: 2.4rem; line-height: 1.05; }
+.box h1 span { color: var(--accent); }
+.box p { color: var(--muted); margin: 6px 0 12px; }
+.btn { display: block; width: 100%; padding: 11px; margin: 8px 0 0; border-radius: 12px; border: 1px solid #e0dccb; background: #f2efe2; font-weight: 800; font-size: 1rem; color: var(--text); }
+.btn.go { background: var(--accent); color: #fff; border-color: var(--accent); }
+.res { font-size: 3rem; font-weight: 900; color: var(--accent); line-height: 1; }
+.small { font-size: .8rem; color: var(--muted); }
+@media (max-height: 520px) { .box { padding: 14px 18px; } .box h1 { font-size: 1.9rem; } .btn { padding: 8px; } .score { font-size: 1.5rem; } }
+</style>
+</head>
+<body>
+<canvas id="cv" aria-label="Snake field"></canvas>
+<div class="hud" id="hud" hidden>
+  <div class="score" id="score" aria-live="polite">0</div>
+  <div><div class="sub" id="sub">Best 0</div><div class="combo" id="combo"></div></div>
+</div>
+<div class="icons"><button class="ib" id="bPause" aria-label="Pause" hidden>⏸</button><button class="ib" id="bSound" aria-label="Sound on">🔊</button></div>
+<div class="hint" id="hint" hidden>Swipe or press an arrow key to start</div>
+
+<div class="overlay" id="oTitle">
+  <div class="box">
+    <div style="font-size:2.4rem">🐍🍩🍒</div>
+    <h1>Snack <span>Snake</span></h1>
+    <p>Steer the snake to eat snacks and grow longer. Eat quickly for combos, grab the golden treat before it melts, and don't bump into walls, rocks or yourself!</p>
+    <button class="btn go" id="btnPlay">Play</button>
+    <button class="btn" id="btnDaily">Daily snacks</button>
+    <p class="small" id="note"></p>
+  </div>
+</div>
+<div class="overlay" id="oPause" hidden>
+  <div class="box">
+    <h1 style="font-size:1.8rem">Paused</h1>
+    <button class="btn go" id="btnResume">Resume</button>
+    <button class="btn" id="btnQuit">Menu</button>
+  </div>
+</div>
+<div class="overlay" id="oOver" hidden>
+  <div class="box">
+    <h1 style="font-size:1.8rem" id="oTitleTxt">Bonk!</h1>
+    <div class="res" id="oScore">0</div>
+    <p id="oDetail"></p>
+    <button class="btn go" id="btnAgain">Play again</button>
+    <button class="btn" id="btnShare" hidden>Copy result</button>
+    <button class="btn" id="btnHome">Menu</button>
+  </div>
+</div>
+<script>
+// Snack Snake: おやつを食べて伸びるヘビ。DOM に依存しない規則部分（時間は step(dt) で進める）。
+(function (root) {
+  'use strict';
+  const N = 17; // 17×17 マス（縦画面でも横画面でも同じ広さ）
+  const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // 0=上 1=右 2=下 3=左
+  const COMBO_TICKS = 28, GOLD_TICKS = 45, MAX_COMBO = 5;
+  const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
+  const dailySeed = (date) => fnv('snake-' + date);
+  function rnd(g) {
+    let a = (g.rng = (g.rng + 0x6D2B79F5) | 0);
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  const interval = (g) => Math.max(0.065, 0.15 - g.eaten * 0.0025); // 1マス進む秒数
+  const key = (p) => p.x + p.y * N;
+  const same = (a, b) => a && b && a.x === b.x && a.y === b.y;
+  function occupied(g, p, ignoreTail) {
+    const body = ignoreTail ? g.snake.slice(0, -1) : g.snake;
+    return body.some((s) => same(s, p)) || g.rocks.some((r) => same(r, p)) || same(g.food, p) || same(g.gold && g.gold.p, p);
+  }
+  // 空いているマスを1つ選ぶ（頭のすぐ前は避ける）
+  function freeCell(g, avoidAhead) {
+    const h = g.snake[0], [dx, dy] = DIRS[g.dir];
+    const cells = [];
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const p = { x, y };
+      if (occupied(g, p)) continue;
+      if (avoidAhead) { // 頭の進行方向の3マス以内と、頭のまわり1マスには置かない
+        if (Math.abs(x - h.x) <= 1 && Math.abs(y - h.y) <= 1) continue;
+        let near = false; for (let k = 1; k <= 3; k++) if (x === h.x + dx * k && y === h.y + dy * k) near = true;
+        if (near) continue;
+      }
+      cells.push(p);
+    }
+    return cells.length ? cells[Math.floor(rnd(g) * cells.length)] : null;
+  }
+  function newGame(o) {
+    o = o || {};
+    const seed = (o.seed >>> 0) || fnv('snake-' + Math.random());
+    const c = Math.floor(N / 2);
+    const g = { n: N, seed, rng: seed | 0, snake: [{ x: c - 1, y: c }, { x: c - 2, y: c }, { x: c - 3, y: c }], prev: null, dir: 1, queue: [], grow: 0,
+      food: null, gold: null, rocks: [], score: 0, eaten: 0, combo: 1, sinceEat: 99, ticks: 0, acc: 0, over: false, level: 1, best: 0 };
+    g.prev = g.snake.map((s) => ({ ...s }));
+    g.food = freeCell(g, true);
+    return g;
+  }
+  // 向きを予約する（2つまで）。真後ろへの反転は受け付けない
+  function turn(g, d) {
+    if (g.over || g.queue.length >= 2) return false;
+    const last = g.queue.length ? g.queue[g.queue.length - 1] : g.dir;
+    if (d === last || (d + 2) % 4 === last) return false;
+    g.queue.push(d);
+    return true;
+  }
+  // 1マス進める。起きたことを返す
+  function tick(g) {
+    if (g.over) return null;
+    if (g.queue.length) g.dir = g.queue.shift();
+    const [dx, dy] = DIRS[g.dir], h = g.snake[0];
+    const nh = { x: h.x + dx, y: h.y + dy };
+    g.prev = g.snake.map((s) => ({ ...s }));
+    g.ticks++; g.sinceEat++;
+    const ev = { ate: null, points: 0 };
+    const growing = g.grow > 0;
+    const hitSelf = (growing ? g.snake : g.snake.slice(0, -1)).some((s) => same(s, nh));
+    if (nh.x < 0 || nh.y < 0 || nh.x >= N || nh.y >= N || hitSelf || g.rocks.some((r) => same(r, nh))) {
+      g.over = true; ev.dead = nh.x < 0 || nh.y < 0 || nh.x >= N || nh.y >= N ? 'wall' : hitSelf ? 'self' : 'rock';
+      return ev;
+    }
+    g.snake.unshift(nh);
+    if (growing) g.grow--; else g.snake.pop();
+    if (same(nh, g.food)) {
+      g.combo = g.sinceEat <= COMBO_TICKS ? Math.min(MAX_COMBO, g.combo + 1) : 1;
+      g.sinceEat = 0; g.eaten++; g.grow += 1;
+      ev.points = 10 * g.combo; ev.ate = 'food';
+      g.food = null;
+      if (g.eaten % 5 === 0 && !g.gold) { const p = freeCell(g, true); if (p) g.gold = { p, left: GOLD_TICKS }; }
+      if (g.eaten % 10 === 0) { // 10個ごとに岩が2つ増える
+        g.level++; ev.level = g.level;
+        for (let i = 0; i < 2; i++) { const p = freeCell(g, true); if (p) g.rocks.push(p); }
+      }
+      g.food = freeCell(g, true) || freeCell(g, false);
+      if (!g.food) { g.over = true; ev.dead = 'full'; }
+    } else if (g.gold && same(nh, g.gold.p)) {
+      ev.points = 50 + 10 * g.gold.left; ev.ate = 'gold'; g.grow += 2; g.gold = null;
+    }
+    if (g.gold && --g.gold.left <= 0) { g.gold = null; ev.goldGone = true; }
+    g.score += ev.points;
+    return ev;
+  }
+  // 経過時間ぶん進める。起きたことの配列を返す
+  function step(g, dt) {
+    const evs = [];
+    if (g.over) return evs;
+    g.acc += dt;
+    let iv = interval(g);
+    while (g.acc >= iv && !g.over) { g.acc -= iv; evs.push(tick(g)); iv = interval(g); }
+    return evs;
+  }
+  const progress = (g) => Math.min(1, g.acc / interval(g));
+  const api = { N, DIRS, COMBO_TICKS, GOLD_TICKS, newGame, turn, tick, step, interval, progress, dailySeed, freeCell };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.SnackSnake = api;
+})(this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.SnackSnake;
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const TEST = qs.has('test');
+  const MANUAL = qs.has('manual'); // 検証用: 自動で時間を進めない
+  const TODAY = qs.get('date') || new Date().toISOString().slice(0, 10);
+  const META = 'sn-meta';
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ } },
+  };
+  let meta = { best: 0, daily: {}, sound: true, games: 0 };
+  try { meta = Object.assign(meta, JSON.parse(store.get(META)) || {}); } catch (e) { /* 既定のまま */ }
+  const saveMeta = () => store.set(META, JSON.stringify(meta));
+  let g = null, mode = 'free', running = false, started = false, paused = false;
+
+  // ---- 効果音 ----
+  let ac = null;
+  function tone(f, d, type, v, w) {
+    if (!meta.sound || TEST) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (w || 0), o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
+      gn.gain.setValueAtTime(v || 0.07, t); gn.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + d);
+    } catch (e) { /* 音が出せなくても遊べる */ }
+  }
+  const sfx = {
+    eat: (c) => { const f = 440 * Math.pow(2, (c - 1) * 2 / 12); tone(f, 0.08, 'triangle', 0.08); tone(f * 1.5, 0.1, 'sine', 0.04, 0.05); },
+    gold: () => [0, 4, 7, 12].forEach((k, i) => tone(660 * Math.pow(2, k / 12), 0.14, 'triangle', 0.06, i * 0.05)),
+    turn: () => tone(180, 0.03, 'sine', 0.02),
+    level: () => [0, 7].forEach((k, i) => tone(330 * Math.pow(2, k / 12), 0.2, 'square', 0.03, i * 0.1)),
+    over: () => [330, 247, 165].forEach((f, i) => tone(f, 0.25, 'sawtooth', 0.035, i * 0.12)),
+  };
+
+  // ---- 描画 ----
+  const cv = $('cv'), cx = cv.getContext('2d');
+  let cw = 0, ch = 0, dpr = 1, cell = 20, ox = 0, oy = 0;
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    cw = window.innerWidth; ch = window.innerHeight;
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const wide = cw > ch * 1.15;
+    // 横長なら左右に、縦長なら上下に表示の余白をとる
+    const top = wide ? 10 : 56, bot = 34, side = wide ? 10 : 8;
+    cell = Math.max(8, Math.floor(Math.min((cw - side * 2) / G.N, (ch - top - bot) / G.N)));
+    ox = Math.floor((cw - cell * G.N) / 2); oy = Math.floor(top + (ch - top - bot - cell * G.N) / 2);
+    draw();
+  }
+  const X = (x) => ox + (x + 0.5) * cell, Y = (y) => oy + (y + 0.5) * cell;
+  const SNACKS = ['cookie', 'donut', 'cherry', 'apple'];
+  function drawSnack(kind, x, y, r, t) {
+    const bob = Math.sin(t * 5 + x) * r * 0.06;
+    cx.save(); cx.translate(x, y + bob);
+    if (kind === 'donut') {
+      cx.fillStyle = '#e3a15c'; cx.beginPath(); cx.arc(0, 0, r, 0, 7); cx.fill();
+      cx.fillStyle = '#ff7eb6'; cx.beginPath(); cx.arc(0, -r * 0.05, r * 0.88, 0, 7); cx.fill();
+      cx.fillStyle = '#2f6b3f'; cx.beginPath(); cx.arc(0, 0, r * 0.32, 0, 7); cx.fill();
+      ['#fff', '#7fd8ff', '#ffe066'].forEach((c, i) => { cx.fillStyle = c; for (let k = 0; k < 2; k++) { const a = i * 2.1 + k * 3.1; cx.fillRect(Math.cos(a) * r * 0.6 - 1, Math.sin(a) * r * 0.6 - 1, 3, 3); } });
+    } else if (kind === 'cherry') {
+      cx.strokeStyle = '#3e8a3a'; cx.lineWidth = Math.max(1.5, r * 0.12); cx.beginPath(); cx.moveTo(-r * 0.4, r * 0.1); cx.quadraticCurveTo(0, -r * 0.9, r * 0.2, -r); cx.moveTo(r * 0.45, r * 0.15); cx.quadraticCurveTo(r * 0.3, -r * 0.6, r * 0.2, -r); cx.stroke();
+      cx.fillStyle = '#e8304a'; [[-r * 0.4, r * 0.35], [r * 0.45, r * 0.4]].forEach(([a, b]) => { cx.beginPath(); cx.arc(a, b, r * 0.5, 0, 7); cx.fill(); });
+      cx.fillStyle = 'rgba(255,255,255,.6)'; cx.beginPath(); cx.arc(-r * 0.55, r * 0.2, r * 0.13, 0, 7); cx.fill();
+    } else if (kind === 'apple') {
+      cx.fillStyle = '#ff5240'; cx.beginPath(); cx.arc(-r * 0.3, r * 0.1, r * 0.62, 0, 7); cx.arc(r * 0.3, r * 0.1, r * 0.62, 0, 7); cx.fill();
+      cx.fillStyle = '#4caf50'; cx.beginPath(); cx.ellipse(r * 0.25, -r * 0.65, r * 0.32, r * 0.16, -0.5, 0, 7); cx.fill();
+      cx.fillStyle = 'rgba(255,255,255,.5)'; cx.beginPath(); cx.arc(-r * 0.45, -r * 0.1, r * 0.14, 0, 7); cx.fill();
+    } else {
+      cx.fillStyle = '#d9a25f'; cx.beginPath(); cx.arc(0, 0, r * 0.92, 0, 7); cx.fill();
+      cx.fillStyle = '#5a3420'; [[-0.35, -0.3], [0.3, -0.2], [-0.1, 0.35], [0.4, 0.4], [-0.45, 0.25]].forEach(([a, b]) => { cx.beginPath(); cx.arc(a * r, b * r, r * 0.12, 0, 7); cx.fill(); });
+    }
+    cx.restore();
+  }
+  function drawGold(gd, t) {
+    const x = X(gd.p.x), y = Y(gd.p.y), r = cell * 0.48;
+    cx.save(); cx.translate(x, y); cx.rotate(Math.sin(t * 3) * 0.2);
+    cx.shadowColor = 'rgba(255,220,80,.9)'; cx.shadowBlur = cell * 0.6;
+    cx.fillStyle = '#ffd23f'; cx.beginPath();
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; cx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    cx.closePath(); cx.fill(); cx.restore();
+    // 残り時間の輪
+    cx.strokeStyle = 'rgba(255,255,255,.8)'; cx.lineWidth = 2;
+    cx.beginPath(); cx.arc(x, y, cell * 0.62, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * gd.left / G.GOLD_TICKS); cx.stroke();
+  }
+  let pops = [], shake = 0;
+  function draw() {
+    if (!cw) return;
+    const t = performance.now() / 1000;
+    cx.fillStyle = '#2f6b3f'; cx.fillRect(0, 0, cw, ch);
+    const sx = shake ? (Math.random() - 0.5) * shake : 0, sy = shake ? (Math.random() - 0.5) * shake : 0;
+    cx.save(); cx.translate(sx, sy);
+    // 芝生のマス目
+    cx.fillStyle = '#7cc66a'; cx.fillRect(ox - 4, oy - 4, cell * G.N + 8, cell * G.N + 8);
+    for (let y = 0; y < G.N; y++) for (let x = 0; x < G.N; x++) { cx.fillStyle = (x + y) % 2 ? '#8fd17a' : '#9ad985'; cx.fillRect(ox + x * cell, oy + y * cell, cell, cell); }
+    cx.strokeStyle = '#4c8f45'; cx.lineWidth = 4; cx.strokeRect(ox - 4, oy - 4, cell * G.N + 8, cell * G.N + 8);
+    if (!g) { cx.restore(); return; }
+    for (const r of g.rocks) {
+      const x = ox + r.x * cell, y = oy + r.y * cell;
+      cx.fillStyle = '#6f7a80'; cx.beginPath(); cx.roundRect(x + cell * 0.08, y + cell * 0.12, cell * 0.84, cell * 0.8, cell * 0.25); cx.fill();
+      cx.fillStyle = '#9aa5ab'; cx.beginPath(); cx.roundRect(x + cell * 0.14, y + cell * 0.12, cell * 0.6, cell * 0.4, cell * 0.2); cx.fill();
+    }
+    if (g.food) drawSnack(SNACKS[g.eaten % SNACKS.length], X(g.food.x), Y(g.food.y), cell * 0.42, t);
+    if (g.gold) drawGold(g.gold, t);
+    // ヘビ: 前の位置から今の位置へなめらかに動かす
+    const k = g.over || !started || paused ? 1 : G.progress(g);
+    const pts = g.snake.map((s, i) => { const p = g.prev[i] || g.prev[g.prev.length - 1]; return { x: X(p.x + (s.x - p.x) * k), y: Y(p.y + (s.y - p.y) * k) }; });
+    // 伸びる途中の尻尾は前の尻尾の位置にとどめる
+    const n = pts.length;
+    for (let i = n - 1; i >= 0; i--) {
+      const f = i / Math.max(1, n - 1);
+      const w = cell * (0.82 - f * 0.28);
+      cx.fillStyle = `hsl(${42 - f * 8},${88}%,${56 - f * 6}%)`;
+      if (i < n - 1) { cx.strokeStyle = cx.fillStyle; cx.lineWidth = w; cx.lineCap = 'round'; cx.beginPath(); cx.moveTo(pts[i].x, pts[i].y); cx.lineTo(pts[i + 1].x, pts[i + 1].y); cx.stroke(); }
+      cx.beginPath(); cx.arc(pts[i].x, pts[i].y, w / 2, 0, 7); cx.fill();
+      if (i % 3 === 1) { cx.fillStyle = 'rgba(200,90,20,.35)'; cx.beginPath(); cx.arc(pts[i].x, pts[i].y, w * 0.18, 0, 7); cx.fill(); }
+    }
+    // 頭（目と舌）
+    const h = pts[0], [dx, dy] = G.DIRS[g.queue.length && !started ? g.queue[0] : g.dir];
+    const px = -dy, py = dx;
+    if (!g.over && Math.sin(t * 6) > 0.3) { cx.strokeStyle = '#e8304a'; cx.lineWidth = Math.max(1.5, cell * 0.08); cx.beginPath(); cx.moveTo(h.x + dx * cell * 0.4, h.y + dy * cell * 0.4); cx.lineTo(h.x + dx * cell * 0.65, h.y + dy * cell * 0.65); cx.stroke(); }
+    for (const sgn of [-1, 1]) {
+      const ex = h.x + dx * cell * 0.12 + px * cell * 0.2 * sgn, ey = h.y + dy * cell * 0.12 + py * cell * 0.2 * sgn;
+      cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(ex, ey, cell * 0.15, 0, 7); cx.fill();
+      cx.fillStyle = '#1b2a20'; cx.beginPath();
+      if (g.over) { cx.lineWidth = 2; cx.strokeStyle = '#1b2a20'; cx.moveTo(ex - 3, ey - 3); cx.lineTo(ex + 3, ey + 3); cx.moveTo(ex + 3, ey - 3); cx.lineTo(ex - 3, ey + 3); cx.stroke(); }
+      else { cx.arc(ex + dx * cell * 0.05, ey + dy * cell * 0.05, cell * 0.08, 0, 7); cx.fill(); }
+    }
+    // 得点のポップ
+    cx.textAlign = 'center'; cx.font = `900 ${Math.max(12, cell * 0.7)}px system-ui, sans-serif`;
+    pops = pops.filter((p) => t - p.t0 < 0.8);
+    for (const p of pops) { const a = (t - p.t0) / 0.8; cx.globalAlpha = 1 - a; cx.fillStyle = p.c; cx.fillText(p.s, X(p.x), Y(p.y) - a * cell * 1.5); }
+    cx.globalAlpha = 1;
+    cx.restore();
+  }
+
+  // ---- 進行 ----
+  function handle(evs) {
+    for (const ev of evs) {
+      if (!ev) continue;
+      if (ev.ate === 'food') { sfx.eat(g.combo); pops.push({ x: g.snake[0].x, y: g.snake[0].y, s: `+${ev.points}`, c: '#fff', t0: performance.now() / 1000 }); }
+      if (ev.ate === 'gold') { sfx.gold(); pops.push({ x: g.snake[0].x, y: g.snake[0].y, s: `+${ev.points}`, c: '#ffe066', t0: performance.now() / 1000 }); }
+      if (ev.level) sfx.level();
+      if (ev.dead) { gameOver(ev.dead); return; }
+    }
+    if (evs.length) hud();
+  }
+  let last = 0;
+  function frame(t) {
+    const dt = Math.min(1 / 20, (t - last) / 1000 || 0);
+    last = t;
+    if (g && running && started && !paused) handle(G.step(g, dt));
+    shake = Math.max(0, shake - dt * 30);
+    draw();
+    requestAnimationFrame(frame);
+  }
+  function hud() {
+    $('score').textContent = g.score;
+    $('sub').textContent = mode === 'daily' ? (meta.daily[TODAY] != null ? `Daily ${meta.daily[TODAY].score}` : 'Daily snacks') : `Best ${Math.max(meta.best, g.score)}`;
+    $('combo').textContent = g.combo > 1 && g.sinceEat <= G.COMBO_TICKS ? `Combo ×${g.combo}` : `Length ${g.snake.length}`;
+  }
+  function steer(d) {
+    if (!g || !running || paused) return;
+    if (!started) { if ((d + 2) % 4 === g.dir) return; started = true; $('hint').hidden = true; }
+    if (G.turn(g, d)) sfx.turn();
+  }
+  function start(m) {
+    mode = m;
+    g = G.newGame({ seed: m === 'daily' ? G.dailySeed(TODAY) : (qs.has('seed') ? +qs.get('seed') : Math.floor(Math.random() * 2 ** 31) + 1) });
+    running = true; started = false; paused = false; pops = [];
+    $('oTitle').hidden = true; $('oOver').hidden = true; $('oPause').hidden = true; $('hud').hidden = false; $('bPause').hidden = false;
+    $('hint').textContent = matchMedia('(pointer: coarse)').matches ? 'Swipe to start' : 'Press an arrow key or WASD to start (or drag)';
+    $('hint').hidden = false;
+    hud(); draw();
+  }
+  function pause(on) {
+    if (!running || !started) return;
+    paused = on; $('oPause').hidden = !on;
+    if (on) $('btnResume').focus();
+    else last = performance.now();
+  }
+  function gameOver(why) {
+    running = false;
+    sfx.over(); shake = 10;
+    meta.games++;
+    let note;
+    if (mode === 'daily') {
+      if (meta.daily[TODAY] == null) { meta.daily[TODAY] = { score: g.score, len: g.snake.length }; note = 'Your daily score is saved. New snacks tomorrow!'; }
+      else note = `Practice run. Your daily: ${meta.daily[TODAY].score}.`;
+    } else { note = g.score > meta.best ? 'New best!' : `Best: ${meta.best}`; meta.best = Math.max(meta.best, g.score); }
+    saveMeta();
+    $('oTitleTxt').textContent = { wall: 'Bonk! Hit the fence', self: 'Oops! Bit your tail', rock: 'Ouch! Hit a rock', full: 'The field is full!' }[why] || 'Game over';
+    $('oScore').textContent = g.score;
+    $('oDetail').textContent = `${g.eaten} snacks · length ${g.snake.length}. ${note}`;
+    $('btnShare').hidden = mode !== 'daily'; $('btnShare').textContent = 'Copy result';
+    $('bPause').hidden = true;
+    hud();
+    setTimeout(() => { $('oOver').hidden = false; $('btnAgain').focus(); }, TEST ? 0 : 900);
+  }
+  function showTitle() {
+    running = false; paused = false;
+    const d = meta.daily[TODAY];
+    $('note').textContent = d != null ? `Today's daily: ${d.score} points. You can still practice.` : 'Everyone gets the same snacks in the same spots today. Only your first try counts.';
+    $('oOver').hidden = true; $('oPause').hidden = true; $('oTitle').hidden = false; $('hud').hidden = true; $('hint').hidden = true; $('bPause').hidden = true;
+    $('btnPlay').focus();
+  }
+  // 操作: キー・スワイプ（指でもマウスでも、動かしている途中で曲がる）
+  const KEYS = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3, w: 0, d: 1, s: 2, a: 3, W: 0, D: 1, S: 2, A: 3 };
+  document.addEventListener('keydown', (e) => {
+    if (e.key in KEYS && running) { e.preventDefault(); if (paused) return; steer(KEYS[e.key]); }
+    else if ((e.key === 'p' || e.key === 'P' || e.key === 'Escape') && running && started) { e.preventDefault(); pause(!paused); }
+  });
+  let p0 = null;
+  window.addEventListener('pointerdown', (e) => { if ((e.target.closest && e.target.closest('button')) || !running) return; p0 = { x: e.clientX, y: e.clientY }; });
+  window.addEventListener('pointermove', (e) => {
+    if (!p0) return;
+    const dx = e.clientX - p0.x, dy = e.clientY - p0.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 22) return;
+    steer(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0));
+    p0 = { x: e.clientX, y: e.clientY };
+  });
+  window.addEventListener('pointerup', () => { p0 = null; });
+  window.addEventListener('pointercancel', () => { p0 = null; });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && running && started && !paused) pause(true); });
+  $('bPause').addEventListener('click', () => pause(true));
+  $('btnResume').addEventListener('click', () => pause(false));
+  $('btnQuit').addEventListener('click', showTitle);
+  $('btnPlay').addEventListener('click', () => start('free'));
+  $('btnDaily').addEventListener('click', () => start('daily'));
+  $('btnAgain').addEventListener('click', () => start(mode));
+  $('btnHome').addEventListener('click', showTitle);
+  $('btnShare').addEventListener('click', () => {
+    const url = globalThis.SN_SHARE_URL || location.origin + location.pathname;
+    const d = meta.daily[TODAY] || { score: g.score, len: g.snake.length };
+    const text = `Snack Snake daily ${TODAY}: ${d.score} points, length ${d.len} 🐍\n${url}`;
+    let done = false;
+    const fin = (ok) => { if (!done) { done = true; $('btnShare').textContent = ok ? 'Copied!' : text; } };
+    setTimeout(() => fin(false), 1500); // 許可がない環境では文面を見せる
+    try { navigator.clipboard.writeText(text).then(() => fin(true), () => fin(false)); } catch (e) { fin(false); }
+  });
+  function renderSound() { $('bSound').textContent = meta.sound ? '🔊' : '🔇'; $('bSound').setAttribute('aria-label', meta.sound ? 'Sound on' : 'Sound off'); }
+  $('bSound').addEventListener('click', () => { meta.sound = !meta.sound; saveMeta(); renderSound(); });
+  window.addEventListener('resize', resize);
+  resize(); renderSound(); showTitle();
+  if (TEST) window.__sn = { get game() { return g; }, G, steer, start, pause, get started() { return started; }, get paused() { return paused; }, tick(dt, n) { for (let i = 0; i < (n || 1); i++) if (g && running && started && !paused) handle(G.step(g, dt)); draw(); }, layout: () => ({ cell, ox, oy }) }; // 検証用
+  if (!MANUAL) requestAnimationFrame(frame); else draw();
+})();
+</script>
+</body>
+</html>
