@@ -289,6 +289,7 @@ button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
   const $ = (id) => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
   const TEST = qs.has('test');
+  const QUIET = TEST && !qs.has('fx'); // 検証中は動きを止める（紹介動画用に fx で戻せる）
   const TODAY = qs.get('date') || new Date().toISOString().slice(0, 10);
   const KEY = 'tt-save', META = 'tt-meta';
   const DAILY = { triples: 24, kinds: 12, layers: 4 };
@@ -328,7 +329,7 @@ button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
   };
 
   // ---- 大きさ ----
-  let tw = 48;
+  let tw = 48, box = { x0: 0, y0: 0, cols: G.COLS, rows: G.ROWS };
   function layout() {
     const wide = window.matchMedia('(min-aspect-ratio: 5/4)').matches;
     // 横長の画面ではトレイを右に縦に置く。トレイの大きさを先に決めてから盤の広さを測る
@@ -338,11 +339,15 @@ button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
     $('tray').style.setProperty('--sw', `${sw}px`);
     const f = $('field');
     const W = f.clientWidth - 12, H = f.clientHeight - 10;
-    tw = Math.max(22, Math.floor(Math.min(W / (G.COLS + 0.3), H / (G.ROWS * 1.15 + 0.6))));
+    // 実際に牌がある範囲（取った牌も含めるので、途中で大きさが変わらない）に合わせて拡大する
+    const xs = g.tiles.map((t) => t.x), ys = g.tiles.map((t) => t.y);
+    box = { x0: Math.min(...xs), y0: Math.min(...ys), cols: (Math.max(...xs) - Math.min(...xs)) / 2 + 1, rows: (Math.max(...ys) - Math.min(...ys)) / 2 + 1 };
+    const maxZ = Math.max(...g.tiles.map((t) => t.z));
+    tw = Math.max(22, Math.floor(Math.min(W / (box.cols + 0.3 + maxZ * 0.04), H / (box.rows * 1.15 + 0.2 + maxZ * 0.1), 120)));
     const th = Math.round(tw * 1.15);
     const b = $('board');
     b.style.setProperty('--tw', `${tw}px`); b.style.setProperty('--th', `${th}px`);
-    b.style.width = `${tw * G.COLS}px`; b.style.height = `${th * G.ROWS + tw * 0.4}px`;
+    b.style.width = `${tw * (box.cols + maxZ * 0.04)}px`; b.style.height = `${th * box.rows + tw * (0.1 + maxZ * 0.1)}px`;
   }
   const lift = () => Math.round(tw * 0.1);
   function render() {
@@ -354,7 +359,7 @@ button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
     for (const t of g.tiles) {
       if (t.gone) continue;
       const free = G.isFree(g.tiles, t);
-      h += `<button class="t${free ? '' : ' blk'}" data-id="${t.id}" style="left:${(t.x * tw) / 2 + t.z * L * 0.4}px;top:${(t.y * th) / 2 - t.z * L + offY * 0.5}px;z-index:${t.z * 100 + t.y}" ${free ? `aria-label="${NAME[t.kind]}"` : 'tabindex="-1" aria-hidden="true"'}>${ICON[t.kind]}</button>`;
+      h += `<button class="t${free ? '' : ' blk'}" data-id="${t.id}" style="left:${((t.x - box.x0) * tw) / 2 + t.z * L * 0.4}px;top:${((t.y - box.y0) * th) / 2 - t.z * L + offY}px;z-index:${t.z * 100 + t.y}" ${free ? `aria-label="${NAME[t.kind]}"` : 'tabindex="-1" aria-hidden="true"'}>${ICON[t.kind]}</button>`;
     }
     $('board').innerHTML = h;
     let tr = '';
@@ -392,12 +397,12 @@ button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
       sfx.pick();
       // 盤から トレイへ飛ぶように見せる
       const slot = document.querySelector(`.slot[data-id="${id}"]`);
-      if (slot && from && !TEST) {
+      if (slot && from && !QUIET) {
         const to = slot.getBoundingClientRect();
         slot.style.transition = 'none';
         slot.style.transform = `translate(${from.left - to.left}px, ${from.top - to.top}px)`;
         requestAnimationFrame(() => requestAnimationFrame(() => { slot.style.transition = 'transform .2s ease-out'; slot.style.transform = ''; }));
-      } else if (slot && !TEST) slot.classList.add('pop');
+      } else if (slot && !QUIET) slot.classList.add('pop');
     }
     saveGame();
     if (g.won) end(true);

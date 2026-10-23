@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tile Trio</title>
+<meta name="description" content="A relaxing tile matching puzzle. Pick free tiles from the stack and match three of a kind before your tray fills up.">
+<meta name="theme-color" content="#2f6b4f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='78' font-size='80' text-anchor='middle'%3E%F0%9F%8D%93%3C/text%3E%3C/svg%3E">
+<style>
+:root { --bg: #2f6b4f; --bg2: #1f4d38; --ink: #f4f1e8; --muted: #c4d8cc; --tile: #fbf5e6; --tile-side: #d9c9a3; --tile-edge: #b49b6c; --tray: rgba(0,0,0,.25); --panel: #fffaf0; --pink: #ff6f91; --gold: #ffc93c; --focus: #8ab4ff; --dim: .52; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #1d3a2d; --bg2: #11261d; --tile: #ece3cc; --tile-side: #b9a982; --dim: .45; } }
+:root[data-theme="dark"] { --bg: #1d3a2d; --bg2: #11261d; --tile: #ece3cc; --tile-side: #b9a982; --dim: .45; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { background: radial-gradient(ellipse at 50% 35%, var(--bg), var(--bg2)); background-color: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.app { height: 100%; display: flex; flex-direction: column; }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; min-height: 46px; }
+.lv { font-weight: 900; font-size: 1.2rem; }
+.lv small { font-weight: 600; color: var(--muted); font-size: .8rem; margin-left: 6px; }
+.stat { color: var(--muted); font-size: .9rem; } .stat b { color: var(--ink); }
+.field { flex: 1; min-height: 0; display: grid; place-items: center; }
+.board { position: relative; isolation: isolate; }
+.t { position: absolute; width: var(--tw); height: var(--th); border-radius: calc(var(--tw) * .16); background: var(--tile); border: 1px solid var(--tile-edge); padding: 0;
+  box-shadow: 0 calc(var(--tw) * .09) 0 var(--tile-side), 0 calc(var(--tw) * .09 + 2px) calc(var(--tw) * .12) rgba(0,0,0,.35); display: grid; place-items: center; font-size: calc(var(--tw) * .6); line-height: 1; transition: filter .15s; }
+.t::after { content: ""; position: absolute; inset: 8% 10% auto; height: 22%; border-radius: 40%; background: rgba(255,255,255,.35); pointer-events: none; }
+.t.blk { filter: brightness(var(--dim)) saturate(.7); cursor: default; }
+.t.hint { animation: glow 1s ease-in-out 2; }
+@keyframes glow { 50% { box-shadow: 0 0 0 4px var(--gold), 0 calc(var(--tw) * .09) 0 var(--tile-side); } }
+.low { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 6px 10px 10px; flex-wrap: wrap; }
+.tray { display: flex; gap: 4px; padding: 6px; background: var(--tray); border-radius: 14px; border: 2px solid rgba(255,255,255,.18); }
+.tray.warn { border-color: var(--pink); }
+.slot { width: var(--sw); height: calc(var(--sw) * 1.15); border-radius: calc(var(--sw) * .16); background: rgba(255,255,255,.08); display: grid; place-items: center; font-size: calc(var(--sw) * .6); }
+.slot.f { background: var(--tile); box-shadow: 0 3px 0 var(--tile-side); }
+.slot.pop { animation: pop .35s ease-out; }
+@keyframes pop { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.helps { display: flex; gap: 8px; }
+.hb { border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.12); border-radius: 12px; padding: 7px 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+.hb:disabled { opacity: .35; cursor: default; }
+.hb .ic { font-size: 1.1rem; }
+.float { position: fixed; pointer-events: none; font-weight: 900; color: var(--gold); font-size: 1.4rem; text-shadow: 0 2px 0 rgba(0,0,0,.3); animation: up .9s ease-out forwards; z-index: 20; transform: translateX(-50%); }
+@keyframes up { to { transform: translate(-50%, -50px); opacity: 0; } }
+.fly { position: fixed; z-index: 30; pointer-events: none; transition: transform .22s ease-in; }
+.overlay { position: fixed; inset: 0; background: rgba(5,20,12,.55); display: grid; place-items: center; z-index: 40; padding: 16px; }
+.box { background: var(--panel); color: #26332b; border-radius: 22px; padding: 22px 26px; width: min(420px, 100%); text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.35); max-height: 100%; overflow: auto; }
+.box h1 { margin: 4px 0 6px; font-size: 2.3rem; line-height: 1.05; }
+.box h1 span { color: #2f8a5f; }
+.box p { color: #5d6b62; margin: 6px 0 12px; }
+.btn { display: block; width: 100%; padding: 11px; margin: 8px 0 0; border-radius: 12px; border: 1px solid #d8d2c2; background: #f1ece0; font-weight: 800; font-size: 1rem; color: #26332b; }
+.btn.go { background: #2f8a5f; color: #fff; border-color: #2f8a5f; }
+.stars { font-size: 2.4rem; letter-spacing: 4px; color: #f5b301; } .stars .off { color: #ddd5c3; }
+.small { font-size: .8rem; color: #6c7a71; }
+@media (max-height: 520px) { .top { min-height: 36px; padding: 4px 12px; } .low { padding: 2px 8px 6px; gap: 10px; } .hb { padding: 5px 9px; } .box { padding: 14px 18px; } .box h1 { font-size: 1.8rem; } }
+@media (max-width: 560px) { .hb .tx { display: none; } }
+@media (min-aspect-ratio: 5/4) {
+  .app { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr; }
+  .field { grid-column: 1; grid-row: 1 / 3; }
+  .top { grid-column: 2; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 10px 14px 0 4px; }
+  .low { grid-column: 2; grid-row: 2; flex-direction: row; align-items: flex-start; justify-content: flex-start; flex-wrap: nowrap; padding: 6px 14px 10px 4px; gap: 10px; }
+  .tray { flex-direction: column; }
+  .helps { flex-direction: column; }
+  .hb .tx { display: none; }
+  .hb { justify-content: center; min-width: 46px; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="top">
+    <div class="lv" id="lv">Level 1</div>
+    <div class="stat">Tiles left <b id="left">0</b></div>
+  </div>
+  <div class="field" id="field"><div class="board" id="board" aria-label="Tile stack"></div></div>
+  <div class="low">
+    <div class="tray" id="tray" aria-label="Tray" aria-live="polite"></div>
+    <div class="helps">
+      <button class="hb" id="bUndo" aria-label="Undo last tile"><span class="ic">↶</span><span class="tx">Undo</span></button>
+      <button class="hb" id="bBack" aria-label="Send 3 tiles back"><span class="ic">⤴</span><span class="tx">Back 3</span></button>
+      <button class="hb" id="bShuffle" aria-label="Shuffle tiles"><span class="ic">🔀</span><span class="tx">Shuffle</span></button>
+      <button class="hb" id="bSound" aria-label="Sound on"><span class="ic">🔊</span></button>
+      <button class="hb" id="bMenu" aria-label="Menu"><span class="ic">☰</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="oTitle">
+  <div class="box">
+    <div style="font-size:2.4rem">🍓🍋🍇</div>
+    <h1>Tile <span>Trio</span></h1>
+    <p>Tap a tile that nothing covers to move it to your tray. Three of a kind vanish. Clear the stack before the tray's 7 spaces fill up!</p>
+    <button class="btn go" id="btnPlay">Play</button>
+    <button class="btn" id="btnDaily">Daily stack</button>
+    <p class="small" id="dailyNote"></p>
+  </div>
+</div>
+<div class="overlay" id="oEnd" hidden>
+  <div class="box">
+    <h1 id="eTitle" style="font-size:1.9rem">Cleared!</h1>
+    <div class="stars" id="eStars"></div>
+    <p id="eDetail"></p>
+    <button class="btn go" id="btnNext">Next level</button>
+    <button class="btn" id="btnSave" hidden>Undo and keep going</button>
+    <button class="btn" id="btnSaveBack" hidden>Send 3 back and keep going</button>
+    <button class="btn" id="btnShare" hidden>Copy result</button>
+    <button class="btn" id="btnRetry">Retry</button>
+    <button class="btn" id="btnHome">Menu</button>
+  </div>
+</div>
+<script>
+// Tile Trio: 重なった牌から上にあるものを取り、トレイで同じ絵柄を3つそろえて消す。DOM に依存しない規則部分。
+(function (root) {
+  'use strict';
+  const SLOTS = 7;
+  const COLS = 8, ROWS = 9; // 牌1枚 = 2×2 の半マス。盤は 16×18 半マス
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
+  const dailySeed = (date) => fnv('trio-' + date);
+  // 面の大きさ: 3枚組の数・絵柄の種類・層の数
+  function spec(level) {
+    return { triples: Math.min(30, 5 + level * 2), kinds: Math.min(14, 4 + level), layers: Math.min(5, 2 + Math.floor(level / 3)) };
+  }
+  const overlaps = (a, b) => Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2;
+  // 上に何も乗っていない牌
+  function isFree(tiles, t) {
+    if (t.gone) return false;
+    for (const o of tiles) if (!o.gone && o.z > t.z && overlaps(o, t)) return false;
+    return true;
+  }
+
+  // 置き場所を決め、取れる順に3枚ずつ同じ絵柄を割り当てる。こうすると必ず解ける並びになる
+  function makeLevel(seed, sp) {
+    const rnd = mulberry32(seed);
+    for (let tries = 0; tries < 300; tries++) {
+      const need = sp.triples * 3;
+      const tiles = [];
+      // 下の層ほど広く。奇数の層は半マスずらす
+      const per = []; let left = need;
+      for (let z = 0; z < sp.layers; z++) { const share = z === sp.layers - 1 ? left : Math.round(left * (0.42 + rnd() * 0.12)); per.push(share); left -= share; }
+      let ok = true;
+      for (let z = 0; z < sp.layers && ok; z++) {
+        const off = z % 2;
+        const cells = [];
+        for (let r = 0; r < ROWS - off; r++) for (let c = 0; c < COLS - off; c++) cells.push({ x: c * 2 + off, y: r * 2 + off });
+        // 下の層に支えられた場所だけ（一番下は中央寄りを好む）
+        let cand = z === 0 ? cells : cells.filter((p) => tiles.some((t) => t.z === z - 1 && overlaps(t, p)));
+        // 左右対称に近い形にする: 鏡写しの2か所に同じ乱数を使い、中央に近いほど先に選ぶ
+        const pr = {};
+        const pk = (p) => { const k = p.y * 20 + Math.min(p.x, 14 - p.x); if (pr[k] == null) pr[k] = rnd(); return pr[k]; };
+        cand = cand.map((p) => ({ p, k: pk(p) * 1.2 + (Math.abs(p.x - 7) * 0.12 + Math.abs(p.y - 8) * 0.09) + (p.x > 7 ? 1e-6 : 0) })).sort((a, b) => a.k - b.k).map((o) => o.p);
+        if (cand.length < per[z]) { ok = false; break; }
+        cand.slice(0, per[z]).forEach((p) => tiles.push({ id: tiles.length, x: p.x, y: p.y, z, kind: 0, gone: false }));
+      }
+      if (!ok) continue;
+      // 割り当て: 取れる牌から1枚ずつ、3枚ごとに絵柄を変える
+      const order = [];
+      let fail = false;
+      while (order.length < need) {
+        const free = tiles.filter((t) => !t.gone && isFree(tiles, t));
+        if (!free.length) { fail = true; break; }
+        const t = free[Math.floor(rnd() * free.length)];
+        t.gone = true; order.push(t);
+      }
+      if (fail) continue;
+      // 同じ組の3枚が近くに固まりすぎないよう、組ごとに絵柄をばらばらに選ぶ
+      for (let i = 0; i < order.length; i += 3) {
+        const kind = 1 + Math.floor(rnd() * sp.kinds);
+        order[i].kind = order[i + 1].kind = order[i + 2].kind = kind;
+      }
+      tiles.forEach((t) => { t.gone = false; });
+      return tiles;
+    }
+    throw new Error('level generation failed');
+  }
+
+  function newGame(opts) {
+    const level = (opts && opts.level) || 1;
+    const sp = Object.assign(spec(level), opts && opts.spec);
+    const seed = (opts && opts.seed) || fnv('trio-level-' + level);
+    return { level, seed, rng: seed ^ 0x5bd1e995, tiles: makeLevel(seed, sp), tray: [], history: [], cleared: 0, used: { undo: 0, shuffle: 0, back: 0 }, won: false, lost: false, combo: 0 };
+  }
+  function rand(g) { const r = mulberry32(g.rng); const v = r(); g.rng = (g.rng + 0x6D2B79F5) | 0; return v; }
+  const free = (g) => g.tiles.filter((t) => isFree(g.tiles, t));
+  // 牌をトレイへ。同じ絵柄の隣に入れ、3枚そろえば消す
+  function pick(g, id) {
+    if (g.won || g.lost) return null;
+    const t = g.tiles[id];
+    if (!t || !isFree(g.tiles, t) || g.tray.length >= SLOTS) return null;
+    t.gone = true;
+    let at = g.tray.length;
+    for (let i = g.tray.length - 1; i >= 0; i--) if (g.tray[i].kind === t.kind) { at = i + 1; break; }
+    g.tray.splice(at, 0, { id: t.id, kind: t.kind });
+    g.history.push(t.id);
+    let matched = null;
+    const same = g.tray.filter((s) => s.kind === t.kind);
+    if (same.length >= 3) {
+      matched = t.kind;
+      let n = 0;
+      g.tray = g.tray.filter((s) => !(s.kind === t.kind && n++ < 3));
+      g.cleared++;
+      g.history = g.history.filter((h) => g.tray.some((s) => s.id === h)); // 消えた牌は戻せない
+    }
+    if (g.tiles.every((x) => x.gone) && !g.tray.length) g.won = true;
+    else if (g.tray.length >= SLOTS) g.lost = true;
+    return { matched, at };
+  }
+  // 手助け（各1回）: 戻す・混ぜる・トレイの3枚を盤へ戻す
+  function undo(g) {
+    if (g.won || g.used.undo || !g.history.length) return false;
+    const id = g.history.pop();
+    g.tray = g.tray.filter((s) => s.id !== id);
+    g.tiles[id].gone = false;
+    g.used.undo = 1; g.lost = false;
+    return true;
+  }
+  function shuffle(g) {
+    if (g.won || g.used.shuffle) return false;
+    const rest = g.tiles.filter((t) => !t.gone);
+    const kinds = rest.map((t) => t.kind);
+    for (let i = kinds.length - 1; i > 0; i--) { const j = Math.floor(rand(g) * (i + 1)); [kinds[i], kinds[j]] = [kinds[j], kinds[i]]; }
+    rest.forEach((t, i) => { t.kind = kinds[i]; });
+    g.used.shuffle = 1;
+    return true;
+  }
+  // トレイの先頭3枚を盤の上の段に置き直す（どれも取れる位置に）
+  function sendBack(g) {
+    if (g.won || g.used.back || !g.tray.length) return false;
+    const out = g.tray.splice(0, 3);
+    const zTop = Math.max(...g.tiles.map((t) => t.z)) + 1;
+    out.forEach((s, i) => { const t = g.tiles[s.id]; t.gone = false; t.x = 3 + i * 4; t.y = 16; t.z = zTop; });
+    g.history = g.history.filter((h) => g.tray.some((s) => s.id === h));
+    g.used.back = 1; g.lost = false;
+    return true;
+  }
+  const remaining = (g) => g.tiles.filter((t) => !t.gone).length + g.tray.length;
+  const helpsUsed = (g) => g.used.undo + g.used.shuffle + g.used.back;
+  const stars = (g) => Math.max(1, 3 - helpsUsed(g));
+  const serialize = (g) => JSON.stringify(g);
+  function load(s) {
+    try {
+      const g = JSON.parse(s);
+      if (!g || !Array.isArray(g.tiles) || !Array.isArray(g.tray) || g.tray.length > SLOTS) return null;
+      return g;
+    } catch (e) { return null; }
+  }
+  // 確認用: 割り当てた順に取れば必ず解けるかを、深さ優先で調べる（トレイの上限も守る）
+  function solvable(g, limit) {
+    limit = limit || 20000;
+    let nodes = 0;
+    const seen = new Set();
+    function rec(st) {
+      if (st.won) return true;
+      if (st.lost || ++nodes > limit) return false;
+      const k = st.tiles.map((t) => (t.gone ? 1 : 0)).join('') + st.tray.map((s) => s.kind).join(',');
+      if (seen.has(k)) return false;
+      seen.add(k);
+      const fr = free(st);
+      // トレイにある絵柄を優先
+      fr.sort((a, b) => st.tray.filter((s) => s.kind === b.kind).length - st.tray.filter((s) => s.kind === a.kind).length);
+      for (const t of fr) {
+        const c = JSON.parse(JSON.stringify(st));
+        pick(c, t.id);
+        if (rec(c)) return true;
+      }
+      return false;
+    }
+    return rec(JSON.parse(JSON.stringify(g)));
+  }
+  const api = { SLOTS, COLS, ROWS, spec, isFree, free, newGame, makeLevel, pick, undo, shuffle, sendBack, remaining, helpsUsed, stars, serialize, load, dailySeed, mulberry32, solvable };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.TileTrio = api;
+})(this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.TileTrio;
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const TEST = qs.has('test');
+  const QUIET = TEST && !qs.has('fx'); // 検証中は動きを止める（紹介動画用に fx で戻せる）
+  const TODAY = qs.get('date') || new Date().toISOString().slice(0, 10);
+  const KEY = 'tt-save', META = 'tt-meta';
+  const DAILY = { triples: 24, kinds: 12, layers: 4 };
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) { /* 同上 */ } },
+  };
+  let meta = { level: 1, stars: {}, daily: {}, sound: true };
+  try { meta = Object.assign(meta, JSON.parse(store.get(META)) || {}); } catch (e) { /* 既定のまま */ }
+  if (qs.has('level')) meta.level = Math.max(1, +qs.get('level') || 1);
+  const saveMeta = () => store.set(META, JSON.stringify(meta));
+  let g = null, mode = 'level';
+  const saveGame = () => { if (g && !g.won && !g.lost) store.set(KEY, JSON.stringify({ game: g, mode, date: TODAY })); };
+  const ICON = ['', '🍎', '🍋', '🍇', '🍓', '🥝', '🍑', '🍒', '🥥', '🌽', '🥕', '🍄', '🌻', '🐟', '🐚'];
+  const NAME = ['', 'apple', 'lemon', 'grapes', 'strawberry', 'kiwi', 'peach', 'cherries', 'coconut', 'corn', 'carrot', 'mushroom', 'sunflower', 'fish', 'shell'];
+
+  // ---- 効果音 ----
+  let ac = null;
+  function tone(f, d, type, v, w) {
+    if (!meta.sound || TEST) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (w || 0), o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
+      gn.gain.setValueAtTime(v || 0.07, t); gn.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + d);
+    } catch (e) { /* 音が出せなくても遊べる */ }
+  }
+  const sfx = {
+    pick: () => tone(700, 0.05, 'triangle', 0.06),
+    match: () => [0, 4, 7, 12].forEach((k, i) => tone(587 * Math.pow(2, k / 12), 0.14, 'triangle', 0.07, i * 0.05)),
+    bad: () => tone(160, 0.1, 'square', 0.03),
+    win: () => [0, 4, 7, 12, 16, 19].forEach((k, i) => tone(523 * Math.pow(2, k / 12), 0.25, 'triangle', 0.07, i * 0.08)),
+    lose: () => [392, 330, 262].forEach((f, i) => tone(f, 0.3, 'sawtooth', 0.035, i * 0.15)),
+  };
+
+  // ---- 大きさ ----
+  let tw = 48, box = { x0: 0, y0: 0, cols: G.COLS, rows: G.ROWS };
+  function layout() {
+    const wide = window.matchMedia('(min-aspect-ratio: 5/4)').matches;
+    // 横長の画面ではトレイを右に縦に置く。トレイの大きさを先に決めてから盤の広さを測る
+    let sw;
+    if (wide) sw = Math.max(28, Math.min(Math.floor((window.innerHeight - 80) / (G.SLOTS * 1.15 + 0.5)), 64));
+    else sw = Math.max(30, Math.min(Math.floor((window.innerWidth - 40 - (window.innerWidth > 760 ? 330 : 0)) / 7.4), 64));
+    $('tray').style.setProperty('--sw', `${sw}px`);
+    const f = $('field');
+    const W = f.clientWidth - 12, H = f.clientHeight - 10;
+    // 実際に牌がある範囲（取った牌も含めるので、途中で大きさが変わらない）に合わせて拡大する
+    const xs = g.tiles.map((t) => t.x), ys = g.tiles.map((t) => t.y);
+    box = { x0: Math.min(...xs), y0: Math.min(...ys), cols: (Math.max(...xs) - Math.min(...xs)) / 2 + 1, rows: (Math.max(...ys) - Math.min(...ys)) / 2 + 1 };
+    const maxZ = Math.max(...g.tiles.map((t) => t.z));
+    tw = Math.max(22, Math.floor(Math.min(W / (box.cols + 0.3 + maxZ * 0.04), H / (box.rows * 1.15 + 0.2 + maxZ * 0.1), 120)));
+    const th = Math.round(tw * 1.15);
+    const b = $('board');
+    b.style.setProperty('--tw', `${tw}px`); b.style.setProperty('--th', `${th}px`);
+    b.style.width = `${tw * (box.cols + maxZ * 0.04)}px`; b.style.height = `${th * box.rows + tw * (0.1 + maxZ * 0.1)}px`;
+  }
+  const lift = () => Math.round(tw * 0.1);
+  function render() {
+    layout();
+    const th = Math.round(tw * 1.15), L = lift();
+    const maxZ = Math.max(...g.tiles.map((t) => t.z));
+    const offY = maxZ * L;
+    let h = '';
+    for (const t of g.tiles) {
+      if (t.gone) continue;
+      const free = G.isFree(g.tiles, t);
+      h += `<button class="t${free ? '' : ' blk'}" data-id="${t.id}" style="left:${((t.x - box.x0) * tw) / 2 + t.z * L * 0.4}px;top:${((t.y - box.y0) * th) / 2 - t.z * L + offY}px;z-index:${t.z * 100 + t.y}" ${free ? `aria-label="${NAME[t.kind]}"` : 'tabindex="-1" aria-hidden="true"'}>${ICON[t.kind]}</button>`;
+    }
+    $('board').innerHTML = h;
+    let tr = '';
+    for (let i = 0; i < G.SLOTS; i++) { const s = g.tray[i]; tr += s ? `<div class="slot f" data-id="${s.id}" role="img" aria-label="${NAME[s.kind]}">${ICON[s.kind]}</div>` : '<div class="slot"></div>'; }
+    $('tray').innerHTML = tr;
+    $('tray').classList.toggle('warn', g.tray.length >= G.SLOTS - 2);
+    hud();
+  }
+  function hud() {
+    $('lv').innerHTML = mode === 'daily' ? `Daily <small>${TODAY}</small>` : `Level ${g.level}`;
+    $('left').textContent = G.remaining(g);
+    $('bUndo').disabled = !!g.used.undo || !g.history.length || g.won;
+    $('bBack').disabled = !!g.used.back || !g.tray.length || g.won;
+    $('bShuffle').disabled = !!g.used.shuffle || g.won;
+  }
+  function floatText(text, x, y) {
+    const f = document.createElement('div'); f.className = 'float'; f.textContent = text;
+    f.style.left = `${x}px`; f.style.top = `${y}px`; document.body.appendChild(f); setTimeout(() => f.remove(), 950);
+  }
+
+  // ---- 操作 ----
+  function tapTile(id) {
+    if (!g || g.won || g.lost) return;
+    const el = document.querySelector(`.t[data-id="${id}"]`);
+    const from = el && el.getBoundingClientRect();
+    const res = G.pick(g, id);
+    if (!res) { sfx.bad(); return; }
+    render();
+    if (res.matched) {
+      sfx.match();
+      const tr = $('tray').getBoundingClientRect();
+      const wide = window.matchMedia('(min-aspect-ratio: 5/4)').matches;
+      floatText(['Nice!', 'Trio!', 'Sweet!', 'Great!'][g.cleared % 4], wide ? tr.left - 50 : tr.left + tr.width / 2, wide ? tr.top + tr.height / 2 : tr.top - 10);
+    } else {
+      sfx.pick();
+      // 盤から トレイへ飛ぶように見せる
+      const slot = document.querySelector(`.slot[data-id="${id}"]`);
+      if (slot && from && !QUIET) {
+        const to = slot.getBoundingClientRect();
+        slot.style.transition = 'none';
+        slot.style.transform = `translate(${from.left - to.left}px, ${from.top - to.top}px)`;
+        requestAnimationFrame(() => requestAnimationFrame(() => { slot.style.transition = 'transform .2s ease-out'; slot.style.transform = ''; }));
+      } else if (slot && !QUIET) slot.classList.add('pop');
+    }
+    saveGame();
+    if (g.won) end(true);
+    else if (g.lost) end(false);
+    else focusFirstFree();
+  }
+  function focusFirstFree() { if (document.activeElement && document.activeElement.classList.contains('t')) { const f = document.querySelector('.t:not(.blk)'); if (f) f.focus(); } }
+  $('board').addEventListener('click', (e) => { const t = e.target.closest('.t'); if (t && !t.classList.contains('blk')) tapTile(+t.dataset.id); });
+  function help(fn) { if (fn(g)) { render(); saveGame(); return true; } return false; }
+  $('bUndo').addEventListener('click', () => help(G.undo));
+  $('bBack').addEventListener('click', () => help(G.sendBack));
+  $('bShuffle').addEventListener('click', () => help(G.shuffle));
+  function renderSound() { $('bSound').querySelector('.ic').textContent = meta.sound ? '🔊' : '🔇'; $('bSound').setAttribute('aria-label', meta.sound ? 'Sound on' : 'Sound off'); }
+  $('bSound').addEventListener('click', () => { meta.sound = !meta.sound; saveMeta(); renderSound(); });
+  $('bMenu').addEventListener('click', () => { saveGame(); showTitle(); });
+  document.addEventListener('keydown', (e) => {
+    if (!g || g.won || g.lost || !$('oTitle').hidden) return;
+    if (e.key === 'u' || e.key === 'z') $('bUndo').click();
+    else if (e.key === 'b') $('bBack').click();
+    else if (e.key === 's') $('bShuffle').click();
+  });
+  window.addEventListener('resize', () => { if (g) render(); });
+
+  // ---- 画面の流れ ----
+  function start(m, game) {
+    mode = m;
+    g = game || (m === 'daily' ? Object.assign(G.newGame({ seed: G.dailySeed(TODAY), spec: DAILY }), { level: 0 }) : G.newGame({ level: meta.level }));
+    $('oTitle').hidden = true; $('oEnd').hidden = true;
+    render(); saveGame();
+  }
+  function end(won) {
+    store.del(KEY);
+    const ov = () => { $('oEnd').hidden = false; (won ? $('btnNext') : $('btnRetry')).focus(); };
+    $('btnSave').hidden = $('btnSaveBack').hidden = true;
+    $('btnShare').hidden = true;
+    if (won) {
+      const st = G.stars(g);
+      let detail = G.helpsUsed(g) ? `Cleared with ${G.helpsUsed(g)} help${G.helpsUsed(g) > 1 ? 's' : ''}. Clear without helps for 3 stars.` : 'Cleared without any helps!';
+      if (mode === 'daily') {
+        if (meta.daily[TODAY] == null) { meta.daily[TODAY] = { stars: st }; detail += ' Your daily result is saved.'; } else detail += ' Practice run.';
+        $('eTitle').textContent = 'Daily stack cleared!';
+        $('btnShare').hidden = false; $('btnShare').textContent = 'Copy result';
+      } else {
+        meta.stars[g.level] = Math.max(meta.stars[g.level] || 0, st);
+        if (g.level === meta.level) meta.level++;
+        $('eTitle').textContent = `Level ${g.level} cleared!`;
+      }
+      saveMeta();
+      $('eStars').hidden = false;
+      $('eStars').innerHTML = [1, 2, 3].map((i) => `<span class="${i <= st ? '' : 'off'}">★</span>`).join('');
+      $('eStars').setAttribute('aria-label', `${st} of 3 stars`);
+      $('eDetail').textContent = detail;
+      $('btnNext').hidden = false;
+      $('btnNext').textContent = mode === 'daily' ? `Play level ${meta.level}` : `Next: level ${meta.level}`;
+      sfx.win();
+    } else {
+      if (mode === 'daily' && meta.daily[TODAY] == null) { meta.daily[TODAY] = { stars: 0 }; saveMeta(); }
+      $('eTitle').textContent = 'Tray full!';
+      $('eStars').hidden = true;
+      $('eDetail').textContent = `${G.remaining(g)} tiles were left.${mode === 'daily' ? ' Your daily try is used, but you can still practice.' : ''}`;
+      $('btnNext').hidden = true;
+      $('btnSave').hidden = !!g.used.undo;
+      $('btnSaveBack').hidden = !!g.used.back;
+      sfx.lose();
+    }
+    setTimeout(ov, TEST ? 0 : 600);
+  }
+  // 負けたあと、残っている手助けで続けられる
+  $('btnSave').addEventListener('click', () => { if (G.undo(g)) { $('oEnd').hidden = true; render(); saveGame(); } });
+  $('btnSaveBack').addEventListener('click', () => { if (G.sendBack(g)) { $('oEnd').hidden = true; render(); saveGame(); } });
+  function showTitle() {
+    let saved = null;
+    try { const s = JSON.parse(store.get(KEY)); if (s && !(s.mode === 'daily' && s.date !== TODAY)) { const gg = G.load(JSON.stringify(s.game)); if (gg && !gg.won && !gg.lost) saved = { game: gg, mode: s.mode }; } } catch (e) { saved = null; }
+    const resume = saved && saved.mode === 'level' && saved.game.level === meta.level ? saved : null;
+    $('btnPlay').textContent = resume ? `Continue level ${meta.level}` : `Play level ${meta.level}`;
+    $('btnPlay').onclick = () => start('level', resume ? resume.game : null);
+    const dsaved = saved && saved.mode === 'daily' ? saved : null;
+    $('btnDaily').onclick = () => start('daily', dsaved ? dsaved.game : null);
+    const d = meta.daily[TODAY];
+    $('dailyNote').textContent = d ? `Today's daily: ${d.stars ? '★'.repeat(d.stars) : 'not cleared'}. You can still practice it.` : 'Everyone gets the same 72-tile stack today. Only your first try counts.';
+    $('oEnd').hidden = true; $('oTitle').hidden = false; $('btnPlay').focus();
+  }
+  $('btnNext').addEventListener('click', () => start('level'));
+  $('btnRetry').addEventListener('click', () => { if (mode === 'daily') start('daily'); else start('level', G.newGame({ level: g.level })); });
+  $('btnHome').addEventListener('click', showTitle);
+  $('btnShare').addEventListener('click', () => {
+    const url = globalThis.TT_SHARE_URL || location.origin + location.pathname;
+    const d = meta.daily[TODAY] || { stars: G.stars(g) };
+    const text = `Tile Trio daily ${TODAY}: ${d.stars ? '⭐'.repeat(d.stars) : 'tray full!'} 🍓🍋🍇\n${url}`;
+    let done = false;
+    const fin = (ok) => { if (!done) { done = true; $('btnShare').textContent = ok ? 'Copied!' : text; } };
+    setTimeout(() => fin(false), 1500); // 許可がない環境では文面を見せる
+    try { navigator.clipboard.writeText(text).then(() => fin(true), () => fin(false)); } catch (e) { fin(false); }
+  });
+  window.addEventListener('pagehide', saveGame);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+  if (TEST) window.__tt = { get game() { return g; }, G, tap: tapTile, start, render, end }; // 検証用
+  renderSound(); showTitle();
+})();
+</script>
+</body>
+</html>
