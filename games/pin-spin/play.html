@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pin Spin</title>
+<meta name="description" content="A one-tap timing game. Throw pins into the spinning log without hitting the ones already stuck in it.">
+<meta name="theme-color" content="#2b2350">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='78' font-size='80' text-anchor='middle'%3E%F0%9F%8E%AF%3C/text%3E%3C/svg%3E">
+<style>
+:root { --panel: #fffdf8; --text: #241f3a; --muted: #6d6789; --accent: #ff5a7a; --gold: #ffcc4d; --focus: #8ab4ff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #2b2350; }
+body { color: #fff; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hud { position: fixed; left: calc(14px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); pointer-events: none; }
+.score { font-size: 2.2rem; font-weight: 900; line-height: 1; }
+.sub { font-size: .85rem; opacity: .8; font-weight: 700; }
+.stage { position: fixed; left: 0; right: 0; top: calc(12px + env(safe-area-inset-top)); text-align: center; pointer-events: none; font-weight: 900; letter-spacing: .04em; }
+.dots { display: flex; justify-content: center; gap: 6px; margin-top: 4px; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.25); }
+.dots i.on { background: var(--gold); } .dots i.boss { border-radius: 2px; transform: rotate(45deg); }
+.icons { position: fixed; right: calc(10px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); display: flex; gap: 8px; align-items: center; z-index: 5; }
+.apples { font-weight: 900; pointer-events: none; }
+.ib { width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.12); color: #fff; font-size: 1.1rem; }
+.banner { position: fixed; left: 0; right: 0; top: 44%; text-align: center; font-size: clamp(1.8rem, 7vh, 3.4rem); font-weight: 900; pointer-events: none; text-shadow: 0 3px 12px rgba(0,0,0,.4); animation: ban 1.2s ease-out forwards; }
+.banner.boss { color: #ff6b6b; }
+@keyframes ban { 0% { transform: scale(.6); opacity: 0; } 20% { transform: scale(1.08); opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } }
+.hint { position: fixed; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom)); text-align: center; font-weight: 800; opacity: .85; pointer-events: none; }
+.overlay { position: fixed; inset: 0; display: grid; place-items: center; z-index: 10; padding: 16px; background: rgba(15,10,35,.5); }
+.box { background: var(--panel); color: var(--text); border-radius: 22px; padding: 22px 26px; width: min(400px, 100%); text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.35); max-height: 100%; overflow: auto; }
+.box h1 { margin: 4px 0 6px; font-size: 2.4rem; line-height: 1.05; }
+.box h1 span { color: var(--accent); }
+.box p { color: var(--muted); margin: 6px 0 12px; }
+.btn { display: block; width: 100%; padding: 11px; margin: 8px 0 0; border-radius: 12px; border: 1px solid #e5dfd2; background: #f3efe6; font-weight: 800; font-size: 1rem; color: var(--text); }
+.btn.go { background: var(--accent); color: #fff; border-color: var(--accent); }
+.res { font-size: 3rem; font-weight: 900; color: var(--accent); line-height: 1; }
+.small { font-size: .8rem; color: var(--muted); }
+@media (max-height: 520px) { .box { padding: 14px 18px; } .box h1 { font-size: 1.9rem; } .btn { padding: 8px; } .score { font-size: 1.7rem; } }
+@media (prefers-reduced-motion: reduce) { .banner { animation-duration: .01s; } }
+</style>
+</head>
+<body>
+<canvas id="cv" aria-label="Spinning log"></canvas>
+<div class="hud" id="hud" hidden><div class="score" id="score" aria-live="polite">0</div><div class="sub" id="best">Best 0</div></div>
+<div class="stage" id="stageBox" hidden><div id="stageTxt">Stage 1</div><div class="dots" id="dots"></div></div>
+<div class="icons"><span class="apples" id="apples" hidden>🍎 0</span><button class="ib" id="bSound" aria-label="Sound on">🔊</button></div>
+<div class="hint" id="hint" hidden>Tap, click or press Space to throw</div>
+<div id="banners"></div>
+
+<div class="overlay" id="oTitle">
+  <div class="box">
+    <div style="font-size:2.4rem">🎯📌</div>
+    <h1>Pin <span>Spin</span></h1>
+    <p>Throw every pin into the spinning log. Don't hit a pin that's already stuck! Grab apples for bonus points and beat a boss log every five stages.</p>
+    <button class="btn go" id="btnPlay">Play</button>
+    <button class="btn" id="btnDaily">Daily challenge</button>
+    <p class="small" id="note"></p>
+  </div>
+</div>
+<div class="overlay" id="oOver" hidden>
+  <div class="box">
+    <h1 style="font-size:1.8rem" id="oHead">Clang!</h1>
+    <div class="res" id="oScore">0</div>
+    <p id="oDetail"></p>
+    <button class="btn go" id="btnAgain">Play again</button>
+    <button class="btn" id="btnShare" hidden>Copy result</button>
+    <button class="btn" id="btnHome">Menu</button>
+  </div>
+</div>
+<script>
+// Pin Spin: 回る丸太にピンを投げて刺す。前に刺したピンに当たったら終わり。DOM に依存しない規則部分。
+(function (root) {
+  'use strict';
+  const GAP = 0.12;        // ピン同士がぶつかる角度（ラジアン）
+  const APPLE_GAP = 0.2;   // りんごを取れる角度
+  const FLIGHT = 0.11;     // 投げてから届くまでの秒数
+  const BOTTOM = Math.PI / 2; // 画面の真下（y が下向きの座標）
+  const TAU = Math.PI * 2;
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
+  const dailySeed = (date) => fnv('pins-' + date);
+  function rand(g) { const r = mulberry32(g.rng); const v = r(); g.rng = (g.rng + 0x6D2B79F5) | 0; return v; }
+  const norm = (a) => ((a % TAU) + TAU) % TAU;
+  const diff = (a, b) => { const d = Math.abs(norm(a) - norm(b)); return Math.min(d, TAU - d); };
+
+  // 面の作り: 5面ごとに速くて気まぐれな「ボス」
+  function makeStage(g, n) {
+    const boss = n % 5 === 0;
+    const pins = Math.min(10, 5 + Math.floor(n * 0.4)) + (boss ? 1 : 0);
+    const preset = Math.min(4, Math.floor((n - 1) * 0.5));
+    const kind = boss ? 2 + Math.floor(rand(g) * 2) : n < 3 ? 0 : Math.floor(rand(g) * 3);
+    const base = (1.5 + Math.min(n, 20) * 0.07 + (boss ? 0.6 : 0)) * (rand(g) < 0.5 ? -1 : 1);
+    const stuck = [];
+    for (let i = 0; i < preset; i++) {
+      for (let k = 0; k < 30; k++) { const a = rand(g) * TAU; if (stuck.every((s) => diff(s, a) > GAP * 2.2)) { stuck.push(a); break; } }
+    }
+    const apples = [];
+    const na = n % 2 === 0 || boss ? 2 : 1;
+    for (let i = 0; i < na; i++) {
+      for (let k = 0; k < 30; k++) { const a = rand(g) * TAU; if (stuck.every((s) => diff(s, a) > GAP * 1.5) && apples.every((s) => diff(s, a) > 0.6)) { apples.push(a); break; } }
+    }
+    return { n, boss, pins, left: pins, kind, base, phase: rand(g) * TAU, stuck, preset, apples, angle: rand(g) * TAU, t: 0, w: base };
+  }
+  // 回り方: 0 一定 / 1 速さが波打つ / 2 ときどき逆回転 / 3 止まりかけては急に回る
+  function omega(st) {
+    const t = st.t, b = st.base;
+    if (st.kind === 0) return b;
+    if (st.kind === 1) return b * (1 + 0.55 * Math.sin(t * 1.7 + st.phase));
+    if (st.kind === 2) { const c = Math.sin(t * 0.9 + st.phase); return b * 1.3 * Math.sign(c) * Math.min(1, Math.abs(c) * 3); }
+    const c = (t * 0.6 + st.phase / TAU) % 1; return b * (0.2 + 1.8 * (0.5 - 0.5 * Math.cos(c * TAU)));
+  }
+  function newGame(opts) {
+    const seed = (opts && opts.seed) || 1;
+    const g = { seed, rng: seed, stage: null, flying: [], score: 0, apples: 0, stagesCleared: 0, over: false, clearT: 0, events: [] };
+    g.stage = makeStage(g, 1);
+    return g;
+  }
+  function throwPin(g) {
+    if (g.over || g.clearT > 0) return false;
+    const st = g.stage;
+    if (st.left - g.flying.length <= 0) return false;
+    g.flying.push({ t: 0 });
+    return true;
+  }
+  // 刺さる瞬間の判定
+  function land(g) {
+    const st = g.stage;
+    const a = norm(BOTTOM - st.angle); // 丸太の上での角度
+    if (st.stuck.some((s) => diff(s, a) < GAP)) {
+      g.over = true; g.events.push({ type: 'hit', a });
+      return;
+    }
+    st.stuck.push(a);
+    st.left--;
+    g.score++;
+    const ai = st.apples.findIndex((p) => diff(p, a) < APPLE_GAP);
+    if (ai >= 0) { st.apples.splice(ai, 1); g.apples++; g.score += 2; g.events.push({ type: 'apple', a }); }
+    g.events.push({ type: 'stick', a });
+    if (st.left === 0) { g.stagesCleared++; g.score += st.boss ? 10 : 3; g.clearT = 1.1; g.events.push({ type: 'clear', boss: st.boss }); }
+  }
+  function step(g, dt) {
+    const st = g.stage;
+    if (!g.over) {
+      st.t += dt;
+      st.w = omega(st);
+      st.angle = norm(st.angle + st.w * dt);
+    }
+    for (const f of g.flying) f.t += dt;
+    while (g.flying.length && g.flying[0].t >= FLIGHT && !g.over) { g.flying.shift(); land(g); }
+    if (g.over) g.flying = [];
+    if (g.clearT > 0) {
+      g.clearT -= dt;
+      if (g.clearT <= 0) { g.clearT = 0; g.flying = []; g.stage = makeStage(g, st.n + 1); g.events.push({ type: 'stage', n: g.stage.n, boss: g.stage.boss }); }
+    }
+  }
+  const takeEvents = (g) => { const e = g.events; g.events = []; return e; };
+  const serialize = (g) => JSON.stringify(g);
+  function load(s) { try { const g = JSON.parse(s); if (!g || !g.stage || !Array.isArray(g.stage.stuck)) return null; return g; } catch (e) { return null; } }
+  const api = { GAP, APPLE_GAP, FLIGHT, BOTTOM, TAU, newGame, makeStage, omega, throwPin, step, takeEvents, serialize, load, dailySeed, mulberry32, diff, norm };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.PinSpin = api;
+})(this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.PinSpin;
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const TEST = qs.has('test');
+  const MANUAL = qs.has('manual'); // 検証用: 自動で時間を進めない
+  const TODAY = qs.get('date') || new Date().toISOString().slice(0, 10);
+  const META = 'ps-meta';
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ } },
+  };
+  let meta = { best: 0, bestStage: 0, daily: {}, sound: true, games: 0 };
+  try { meta = Object.assign(meta, JSON.parse(store.get(META)) || {}); } catch (e) { /* 既定のまま */ }
+  const saveMeta = () => store.set(META, JSON.stringify(meta));
+  let g = null, mode = 'free', playing = false;
+
+  // ---- 効果音 ----
+  let ac = null;
+  function tone(f, d, type, v, w, slide) {
+    if (!meta.sound || TEST) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (w || 0), o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'sine'; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + d);
+      gn.gain.setValueAtTime(v || 0.07, t); gn.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + d);
+    } catch (e) { /* 音が出せなくても遊べる */ }
+  }
+  const sfx = {
+    whoosh: () => tone(900, 0.08, 'triangle', 0.03, 0, 400),
+    thunk: () => { tone(140, 0.09, 'square', 0.06, 0, 90); tone(300, 0.05, 'triangle', 0.05); },
+    apple: () => [0, 7, 12].forEach((k, i) => tone(660 * Math.pow(2, k / 12), 0.1, 'triangle', 0.06, i * 0.05)),
+    clang: () => { tone(1200, 0.25, 'square', 0.05, 0, 600); tone(180, 0.35, 'sawtooth', 0.05, 0.05, 80); },
+    clear: () => [0, 4, 7, 12, 16].forEach((k, i) => tone(523 * Math.pow(2, k / 12), 0.2, 'triangle', 0.07, i * 0.07)),
+    boss: () => [0, 3, 6].forEach((k, i) => tone(196 * Math.pow(2, k / 12), 0.25, 'sawtooth', 0.04, i * 0.12)),
+  };
+
+  // ---- 描画 ----
+  const cv = $('cv'), cx = cv.getContext('2d');
+  let cw = 0, ch = 0;
+  function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cw = window.innerWidth; ch = window.innerHeight;
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  const geo = () => {
+    // 縦: 上の表示 + (丸太 + 上下のピン) + 次のピン が収まる大きさにする
+    const top = ch < 520 ? 46 : 64;
+    const R = Math.min(cw * 0.23, (ch - top - 24) / 5.3, 150);
+    const L = R * 0.95;
+    let cy = top + R + L + R * 0.14;
+    let sy = cy + R + L + L + R * 0.5;
+    // 縦長の画面では全体を上下の真ん中に寄せる
+    const spare = ch - 16 - sy;
+    if (spare > 0) { cy += spare * 0.45; sy += spare * 0.45; }
+    return { R, L, cx: cw / 2, cy, sy: Math.min(ch - 16, sy) };
+  };
+  const fx = { shake: 0, flash: 0, parts: [], bounce: null, burst: null };
+  function drawPin(x, y, ang, len, R0, alpha) {
+    // ang 方向に向いた、中心から R0..R0+len のピン
+    const c = Math.cos(ang), s = Math.sin(ang);
+    const x0 = x + c * R0, y0 = y + s * R0, x1 = x + c * (R0 + len), y1 = y + s * (R0 + len);
+    cx.globalAlpha = alpha == null ? 1 : alpha;
+    cx.strokeStyle = '#e8ecf5'; cx.lineWidth = Math.max(3, len * 0.07); cx.lineCap = 'round';
+    cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x1, y1); cx.stroke();
+    cx.fillStyle = '#ff5a7a';
+    cx.beginPath(); cx.arc(x1, y1, Math.max(5, len * 0.12), 0, 7); cx.fill();
+    cx.fillStyle = 'rgba(255,255,255,.6)';
+    cx.beginPath(); cx.arc(x1 - len * 0.03, y1 - len * 0.03, Math.max(2, len * 0.04), 0, 7); cx.fill();
+    cx.globalAlpha = 1;
+  }
+  function drawLog(X, Y, R, ang, boss) {
+    cx.save(); cx.translate(X, Y); cx.rotate(ang);
+    const grd = cx.createRadialGradient(0, 0, R * 0.1, 0, 0, R);
+    if (boss) { grd.addColorStop(0, '#8a5cc7'); grd.addColorStop(1, '#4a2b80'); } else { grd.addColorStop(0, '#e2b07a'); grd.addColorStop(1, '#a8703e'); }
+    cx.fillStyle = grd; cx.beginPath(); cx.arc(0, 0, R, 0, 7); cx.fill();
+    cx.strokeStyle = boss ? '#ffcc4d' : '#7c4f27'; cx.lineWidth = R * 0.07; cx.beginPath(); cx.arc(0, 0, R * 0.965, 0, 7); cx.stroke();
+    cx.strokeStyle = boss ? 'rgba(255,255,255,.18)' : 'rgba(110,65,30,.45)'; cx.lineWidth = Math.max(1.5, R * 0.025);
+    for (const k of [0.3, 0.55, 0.78]) { cx.beginPath(); cx.arc(R * 0.04, -R * 0.03, R * k, 0, 7); cx.stroke(); }
+    // 回っているのが分かる印
+    cx.fillStyle = boss ? 'rgba(255,204,77,.8)' : 'rgba(110,65,30,.6)';
+    for (let i = 0; i < 3; i++) { const a = i * 2.094; cx.beginPath(); cx.arc(Math.cos(a) * R * 0.66, Math.sin(a) * R * 0.66, R * 0.06, 0, 7); cx.fill(); }
+    if (boss) { cx.fillStyle = '#ffcc4d'; cx.font = `900 ${Math.round(R * 0.28)}px system-ui`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('★', 0, 0); }
+    cx.restore();
+  }
+  function draw() {
+    const grd = cx.createLinearGradient(0, 0, 0, ch);
+    grd.addColorStop(0, '#3a2f6b'); grd.addColorStop(1, '#1b1636');
+    cx.fillStyle = grd; cx.fillRect(0, 0, cw, ch);
+    if (!g) return;
+    const { R, L, cx: X0, cy: Y0, sy } = geo();
+    const st = g.stage;
+    const sh = fx.shake > 0 ? fx.shake * R * 0.06 : 0;
+    const X = X0, Y = Y0 - sh;
+    if (!fx.burst) {
+      for (const a of st.apples) {
+        const w = a + st.angle, ax = X + Math.cos(w) * (R + R * 0.16), ay = Y + Math.sin(w) * (R + R * 0.16);
+        cx.fillStyle = '#ff4b4b'; cx.beginPath(); cx.arc(ax, ay, R * 0.14, 0, 7); cx.fill();
+        cx.fillStyle = '#3fbf5a'; cx.beginPath(); cx.ellipse(ax + R * 0.05, ay - R * 0.15, R * 0.06, R * 0.03, -0.5, 0, 7); cx.fill();
+      }
+      for (const a of st.stuck) drawPin(X, Y, a + st.angle, L, R * 0.82);
+      drawLog(X, Y, R, st.angle, st.boss);
+    } else {
+      // 割れた丸太とピンが飛び散る
+      const b = fx.burst, t = b.t;
+      for (const p of b.pieces) {
+        cx.save(); cx.translate(X + p.vx * t, Y + p.vy * t + 500 * t * t); cx.rotate(p.r + p.vr * t);
+        cx.fillStyle = st.boss ? '#6a40a8' : '#b9824b'; cx.beginPath(); cx.moveTo(0, 0); cx.arc(0, 0, R, p.a0, p.a0 + 1.2); cx.fill(); cx.restore();
+      }
+      for (const p of b.pins) drawPin(X + p.vx * t, Y + p.vy * t + 600 * t * t, p.a + p.vr * t, L, R * 0.82, Math.max(0, 1 - t));
+    }
+    // 投げているピン
+    for (const f of g.flying) { const k = Math.min(1, f.t / G.FLIGHT); const y = sy + (Y + R * 0.82 + L - sy) * k; drawPin(X, y, Math.PI / 2, L, -L, 1); }
+    // 次に投げるピン
+    const ready = playing && !g.over && g.clearT <= 0 && st.left - g.flying.length > 0;
+    if (ready) drawPin(X, sy, Math.PI / 2, L, -L, 1);
+    // はじかれたピン
+    if (fx.bounce) { const b = fx.bounce; drawPin(X + b.vx * b.t, Y + R + L * 0.5 + b.vy * b.t + 900 * b.t * b.t, Math.PI / 2 + b.vr * b.t, L, -L * 0.5, 1); }
+    // 残りのピン
+    const left = Math.max(0, st.left - g.flying.length - (ready ? 1 : 0));
+    const ix = Math.max(26, cw * 0.06);
+    for (let i = 0; i < left; i++) {
+      const y = sy - i * Math.min(22, ch * 0.035);
+      cx.strokeStyle = 'rgba(232,236,245,.85)'; cx.lineWidth = 3; cx.lineCap = 'round';
+      cx.beginPath(); cx.moveTo(ix - 9, y); cx.lineTo(ix + 7, y); cx.stroke();
+      cx.fillStyle = '#ff5a7a'; cx.beginPath(); cx.arc(ix + 9, y, 4, 0, 7); cx.fill();
+    }
+    for (const p of fx.parts) { cx.globalAlpha = Math.max(0, p.life); cx.fillStyle = p.c; cx.fillRect(p.x, p.y, p.s, p.s); }
+    cx.globalAlpha = 1;
+    if (fx.flash > 0) { cx.fillStyle = `rgba(255,70,90,${fx.flash * 0.35})`; cx.fillRect(0, 0, cw, ch); }
+  }
+  function chips(x, y, n, c) {
+    if (TEST && !qs.has('fx')) return;
+    for (let i = 0; i < n; i++) fx.parts.push({ x, y, vx: (Math.random() - 0.5) * 260, vy: -Math.random() * 220, s: 3 + Math.random() * 4, life: 1, c });
+  }
+  function updateFx(dt) {
+    fx.shake = Math.max(0, fx.shake - dt * 6); fx.flash = Math.max(0, fx.flash - dt * 1.5);
+    for (const p of fx.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 600 * dt; p.life -= dt * 1.6; }
+    fx.parts = fx.parts.filter((p) => p.life > 0);
+    if (fx.bounce) fx.bounce.t += dt;
+    if (fx.burst) { fx.burst.t += dt; if (fx.burst.t > 1.2) fx.burst = null; }
+  }
+  function handleEvents() {
+    const { R, cx: X, cy: Y } = geo();
+    for (const e of G.takeEvents(g)) {
+      if (e.type === 'stick') { sfx.thunk(); fx.shake = 1; chips(X, Y + R, 6, '#d9a066'); hud(); }
+      if (e.type === 'apple') { sfx.apple(); chips(X, Y + R, 10, '#ff4b4b'); hud(); }
+      if (e.type === 'hit') { sfx.clang(); fx.flash = 1; fx.bounce = { t: 0, vx: (Math.random() < 0.5 ? -1 : 1) * 160, vy: 80, vr: 9 }; gameOver(); }
+      if (e.type === 'clear') {
+        sfx.clear();
+        const st = g.stage;
+        fx.burst = { t: 0, pieces: [0, 1, 2, 3, 4].map((i) => ({ a0: i * 1.26, r: st.angle, vr: (Math.random() - 0.5) * 6, vx: Math.cos(i * 1.26 + 0.6) * 260, vy: Math.sin(i * 1.26 + 0.6) * 260 - 120 })),
+          pins: st.stuck.map((a) => ({ a: a + st.angle, vx: Math.cos(a + st.angle) * 320, vy: Math.sin(a + st.angle) * 320 - 150, vr: (Math.random() - 0.5) * 8 })) };
+        banner(st.boss ? 'Boss down!' : 'Stage clear!');
+      }
+      if (e.type === 'stage') { if (e.boss) { sfx.boss(); banner('Boss log!', true); } hud(); }
+    }
+  }
+  function banner(text, boss) {
+    const b = document.createElement('div'); b.className = 'banner' + (boss ? ' boss' : ''); b.textContent = text;
+    $('banners').appendChild(b); setTimeout(() => b.remove(), 1300);
+  }
+
+  // ---- 進行 ----
+  let last = 0;
+  function tick(dt) {
+    if (g) { G.step(g, dt); handleEvents(); }
+    updateFx(dt); draw();
+  }
+  function frame(t) {
+    const dt = Math.min(1 / 30, (t - last) / 1000 || 0);
+    last = t; tick(dt);
+    requestAnimationFrame(frame);
+  }
+  function hud() {
+    $('score').textContent = g.score;
+    $('best').textContent = mode === 'daily' ? (meta.daily[TODAY] ? `Daily ${meta.daily[TODAY].score}` : 'Daily challenge') : `Best ${Math.max(meta.best, g.score)}`;
+    const n = g.stage.n;
+    $('stageTxt').textContent = g.stage.boss ? `Boss · Stage ${n}` : `Stage ${n}`;
+    const s0 = Math.floor((n - 1) / 5) * 5;
+    $('dots').innerHTML = [1, 2, 3, 4, 5].map((i) => `<i class="${s0 + i <= n ? 'on' : ''}${i === 5 ? ' boss' : ''}"></i>`).join('');
+    $('apples').textContent = `🍎 ${g.apples}`;
+  }
+  function doThrow() {
+    if (!g || !playing) return;
+    if (G.throwPin(g)) { sfx.whoosh(); $('hint').hidden = true; }
+  }
+  function start(m) {
+    mode = m;
+    g = G.newGame({ seed: m === 'daily' ? G.dailySeed(TODAY) : (qs.has('seed') ? +qs.get('seed') : Math.floor(Math.random() * 2 ** 31) + 1) });
+    playing = true; fx.bounce = null; fx.burst = null; fx.parts = [];
+    for (const id of ['hud', 'stageBox', 'apples']) $(id).hidden = false;
+    $('oTitle').hidden = true; $('oOver').hidden = true;
+    $('hint').hidden = meta.games > 2;
+    hud(); draw();
+  }
+  function gameOver() {
+    playing = false;
+    meta.games++;
+    let note;
+    if (mode === 'daily') {
+      if (!meta.daily[TODAY]) { meta.daily[TODAY] = { score: g.score, stage: g.stage.n }; note = 'Your daily score is saved.'; }
+      else note = `Practice run. Your daily: ${meta.daily[TODAY].score}.`;
+    } else { note = g.score > meta.best ? 'New best!' : `Best: ${meta.best}`; meta.best = Math.max(meta.best, g.score); }
+    meta.bestStage = Math.max(meta.bestStage, g.stage.n);
+    saveMeta(); hud();
+    $('oHead').textContent = ['Clang!', 'Ouch!', 'Bonk!'][g.score % 3];
+    $('oScore').textContent = g.score;
+    $('oDetail').textContent = `Reached stage ${g.stage.n} · ${g.apples} apple${g.apples === 1 ? '' : 's'}. ${note}`;
+    $('btnShare').hidden = mode !== 'daily'; $('btnShare').textContent = 'Copy result';
+    setTimeout(() => { $('oOver').hidden = false; $('btnAgain').focus(); }, TEST ? 0 : 900);
+  }
+  function showTitle() {
+    playing = false;
+    const d = meta.daily[TODAY];
+    $('note').textContent = d ? `Today's daily: ${d.score} points (stage ${d.stage}). You can still practice.` : 'Everyone gets the same logs today. Only your first try counts.';
+    $('oOver').hidden = true; $('oTitle').hidden = false; $('hint').hidden = true;
+    $('btnPlay').focus();
+  }
+  window.addEventListener('pointerdown', (e) => { if (e.target.closest('button') || !$('oTitle').hidden || !$('oOver').hidden) return; e.preventDefault(); doThrow(); });
+  document.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowUp') && playing) { e.preventDefault(); doThrow(); } });
+  $('btnPlay').addEventListener('click', () => start('free'));
+  $('btnDaily').addEventListener('click', () => start('daily'));
+  $('btnAgain').addEventListener('click', () => start(mode));
+  $('btnHome').addEventListener('click', showTitle);
+  $('btnShare').addEventListener('click', () => {
+    const url = globalThis.PS_SHARE_URL || location.origin + location.pathname;
+    const d = meta.daily[TODAY] || { score: g.score, stage: g.stage.n };
+    const text = `Pin Spin daily ${TODAY}: ${d.score} points, stage ${d.stage} 🎯\n${url}`;
+    let done = false;
+    const fin = (ok) => { if (!done) { done = true; $('btnShare').textContent = ok ? 'Copied!' : text; } };
+    setTimeout(() => fin(false), 1500); // 許可がない環境では文面を見せる
+    try { navigator.clipboard.writeText(text).then(() => fin(true), () => fin(false)); } catch (e) { fin(false); }
+  });
+  function renderSound() { $('bSound').textContent = meta.sound ? '🔊' : '🔇'; $('bSound').setAttribute('aria-label', meta.sound ? 'Sound on' : 'Sound off'); }
+  $('bSound').addEventListener('click', () => { meta.sound = !meta.sound; saveMeta(); renderSound(); });
+  window.addEventListener('resize', () => { resize(); draw(); });
+  resize(); renderSound(); showTitle(); draw();
+  if (TEST) window.__ps = { get game() { return g; }, G, throw: doThrow, start, tick(dt, n) { for (let i = 0; i < (n || 1); i++) tick(dt); }, geo }; // 検証用
+  if (!MANUAL) requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
