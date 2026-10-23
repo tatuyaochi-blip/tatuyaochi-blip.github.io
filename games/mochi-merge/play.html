@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mochi Merge</title>
+<meta name="description" content="Slide the board and squish matching mochi together. Can you grow the 2048 mochi?">
+<meta name="theme-color" content="#fbf1e6">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='78' font-size='80' text-anchor='middle'%3E%F0%9F%8D%A1%3C/text%3E%3C/svg%3E">
+<style>
+:root { --bg: #fbf1e6; --bg2: #f1dcc7; --panel: #fffaf4; --ink: #3a2a22; --muted: #84695a; --line: #e5cdb8; --board: #e3c6ab; --slot: #efdccb; --accent: #ff6f91; --accent-ink: #fff; --focus: #2563eb; --gold: #f5b301;
+  --m1: #fffdf8; --m2: #ffe1ea; --m3: #ffd1a6; --m4: #ffb07d; --m5: #ff8d84; --m6: #ff6f91; --m7: #cfe38a; --m8: #8fcf9c; --m9: #f6d56a; --m10: #f0ac43; --m11: #b98cff; --m12: #7b62e0; --m13: #4b3c9e; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #2a211c; --bg2: #1b1512; --panel: #352a23; --ink: #fbefe4; --muted: #c6ab98; --line: #4f3f34; --board: #4a3a2f; --slot: #5a483b; --accent: #ff86a3; --accent-ink: #2a0d16; --focus: #8ab4ff; } }
+:root[data-theme="dark"] { --bg: #2a211c; --bg2: #1b1512; --panel: #352a23; --ink: #fbefe4; --muted: #c6ab98; --line: #4f3f34; --board: #4a3a2f; --slot: #5a483b; --accent: #ff86a3; --accent-ink: #2a0d16; --focus: #8ab4ff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { background: radial-gradient(ellipse at 50% 20%, var(--bg), var(--bg2)); background-color: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.app { height: 100%; display: flex; flex-direction: column; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; min-height: 56px; }
+.lv { font-weight: 900; font-size: 1.25rem; white-space: nowrap; }
+.lv small { font-weight: 600; color: var(--muted); font-size: .8rem; margin-left: 6px; }
+.scores { display: flex; gap: 8px; }
+.sc { background: var(--board); border-radius: 10px; padding: 3px 12px; text-align: center; min-width: 70px; }
+.sc span { display: block; font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.sc b { font-size: 1.1rem; }
+.field { flex: 1; display: grid; place-items: center; min-height: 0; padding: 4px 10px; touch-action: none; }
+.board { --s: 300px; --gap: calc(var(--s) * .028); --cell: calc((var(--s) - var(--gap) * 5) / 4); width: var(--s); height: var(--s); background: var(--board); border-radius: calc(var(--s) * .045); position: relative; box-shadow: 0 8px 24px rgba(90,50,20,.15); }
+.slot { position: absolute; width: var(--cell); height: var(--cell); border-radius: 26%; background: var(--slot); }
+.t { position: absolute; left: 0; top: 0; width: var(--cell); height: var(--cell); border-radius: 38% 38% 30% 30%; display: grid; place-items: end center; padding-bottom: calc(var(--cell) * .14); font-weight: 900; color: #5a3a2c; transition: transform .1s ease-in-out; z-index: 1;
+  box-shadow: inset 0 calc(var(--cell) * -.07) 0 rgba(0,0,0,.1), inset calc(var(--cell) * .08) calc(var(--cell) * .08) calc(var(--cell) * .1) rgba(255,255,255,.55), 0 2px 4px rgba(90,50,20,.18); }
+.t .e { position: absolute; top: 30%; width: 9%; height: 9%; border-radius: 50%; background: currentColor; opacity: .85; }
+.t .e.l { left: 33%; } .t .e.r { right: 33%; }
+.t .k { position: absolute; top: 41%; width: 15%; height: 7%; border-radius: 50%; background: rgba(255,110,140,.45); }
+.t .k.l { left: 17%; } .t .k.r { right: 17%; }
+.t .m { position: absolute; top: 38%; left: 46%; width: 8%; height: 5%; border: 2px solid currentColor; border-top: 0; border-radius: 0 0 50% 50%; opacity: .7; }
+.t b { position: relative; line-height: 1; }
+.t.new { animation: appear .18s ease-out; }
+.t.pop { animation: pop .2s ease-out; z-index: 2; }
+@keyframes appear { from { transform: var(--xy) scale(.2); } to { transform: var(--xy) scale(1); } }
+@keyframes pop { 0% { transform: var(--xy) scale(.85); } 55% { transform: var(--xy) scale(1.16, 1.06); } 100% { transform: var(--xy) scale(1); } }
+.v1 { background: var(--m1); } .v2 { background: var(--m2); } .v3 { background: var(--m3); } .v4 { background: var(--m4); } .v5 { background: var(--m5); color: #fff; } .v6 { background: var(--m6); color: #fff; }
+.v7 { background: var(--m7); } .v8 { background: var(--m8); } .v9 { background: var(--m9); } .v10 { background: var(--m10); color: #fff; } .v11 { background: var(--m11); color: #fff; box-shadow: 0 0 calc(var(--cell) * .3) rgba(245,179,1,.8), inset 0 calc(var(--cell) * -.07) 0 rgba(0,0,0,.1); }
+.v12 { background: var(--m12); color: #fff; } .v13, .v14, .v15, .v16, .v17 { background: var(--m13); color: #fff; }
+.bar { display: flex; justify-content: center; gap: 10px; padding: 8px 10px 12px; flex-wrap: wrap; }
+.tb { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 8px 14px; min-width: 52px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.tb:disabled { opacity: .45; cursor: default; }
+.tb .ic { font-size: 1.15rem; }
+.toast { position: fixed; left: 50%; bottom: 72px; max-width: calc(100% - 32px); text-align: center; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-weight: 700; font-size: .9rem; z-index: 5; pointer-events: none; }
+.plus { position: absolute; font-weight: 900; color: var(--accent); pointer-events: none; animation: rise .7s ease-out forwards; z-index: 3; }
+@keyframes rise { to { transform: translateY(-30px); opacity: 0; } }
+.overlay { position: fixed; inset: 0; background: rgba(40,25,15,.45); display: grid; place-items: center; z-index: 10; padding: 16px; }
+.box { background: var(--panel); border-radius: 22px; padding: 22px 26px; width: min(420px, 100%); text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.25); max-height: 100%; overflow: auto; }
+.box h1 { margin: 4px 0 6px; font-size: 2.3rem; line-height: 1.05; }
+.box h1 span { color: var(--accent); }
+.box p { color: var(--muted); margin: 6px 0 12px; }
+.btn { display: block; width: 100%; padding: 11px; margin: 8px 0 0; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); font-weight: 800; font-size: 1rem; }
+.btn.go { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.big { font-size: 2.6rem; font-weight: 900; }
+.small { font-size: .8rem; color: var(--muted); }
+.row3 { display: flex; justify-content: center; gap: 6px; margin: 6px 0 4px; }
+.row3 i { width: 34px; height: 34px; border-radius: 38% 38% 30% 30%; display: grid; place-items: center; font-style: normal; font-weight: 900; font-size: .7rem; color: #5a3a2c; box-shadow: inset 0 -3px 0 rgba(0,0,0,.1); }
+.conf { position: fixed; width: 10px; height: 14px; border-radius: 3px; z-index: 11; pointer-events: none; animation: fall 1.4s ease-in forwards; }
+@keyframes fall { to { transform: translateY(110vh) rotate(540deg); opacity: .6; } }
+@media (max-height: 520px) { .top { min-height: 40px; padding: 4px 12px; } .lv { font-size: 1.05rem; } .sc { padding: 1px 10px; } .sc b { font-size: .95rem; } .bar { padding: 4px 8px 6px; gap: 8px; } .tb { padding: 5px 10px; } .box { padding: 14px 18px; } .box h1 { font-size: 1.8rem; } }
+@media (max-width: 480px) { .tb .tx { display: none; } .tb { min-width: 48px; justify-content: center; } .sc { min-width: 58px; padding: 3px 8px; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="top">
+    <div class="lv" id="lv">Mochi Merge</div>
+    <div class="scores">
+      <div class="sc"><span>Score</span><b id="score">0</b></div>
+      <div class="sc"><span>Best</span><b id="best">0</b></div>
+    </div>
+  </div>
+  <div class="field" id="field"><div class="board" id="board" role="grid" aria-label="Mochi board"></div></div>
+  <div class="bar">
+    <button class="tb" id="bUndo" aria-label="Undo"><span class="ic">↶</span><span class="tx">Undo</span> <span id="undos">3</span></button>
+    <button class="tb" id="bNew" aria-label="New game"><span class="ic">⟲</span><span class="tx">New</span></button>
+    <button class="tb" id="bSound" aria-label="Sound on"><span class="ic">🔊</span></button>
+    <button class="tb" id="bMenu" aria-label="Menu"><span class="ic">☰</span></button>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div id="live" class="small" aria-live="polite" style="position:absolute;left:-9999px"></div>
+
+<div class="overlay" id="oTitle">
+  <div class="box">
+    <div class="row3" aria-hidden="true"><i class="v1">2</i><i class="v3">8</i><i class="v6">64</i><i class="v9">512</i><i class="v11">2048</i></div>
+    <h1>Mochi <span>Merge</span></h1>
+    <p>Swipe or use the arrow keys to slide every mochi. Two of the same squish into one bigger mochi. Grow the 2048 mochi!</p>
+    <button class="btn go" id="btnPlay">Play</button>
+    <button class="btn" id="btnDaily">Daily board</button>
+    <p class="small" id="dailyNote"></p>
+  </div>
+</div>
+<div class="overlay" id="oGoal" hidden>
+  <div class="box">
+    <h1 style="font-size:1.9rem">2048 mochi!</h1>
+    <div class="row3" aria-hidden="true"><i class="v11" style="width:64px;height:64px;font-size:1rem">2048</i></div>
+    <p>You grew the giant mochi. Keep going for a bigger score?</p>
+    <button class="btn go" id="btnKeep">Keep going</button>
+  </div>
+</div>
+<div class="overlay" id="oOver" hidden>
+  <div class="box">
+    <h1 id="oTitleTx" style="font-size:1.9rem">No more moves</h1>
+    <div class="big" id="oScore">0</div>
+    <p id="oDetail"></p>
+    <button class="btn go" id="btnAgain">New game</button>
+    <button class="btn" id="btnUndoOver">Undo last move</button>
+    <button class="btn" id="btnShare" hidden>Copy result</button>
+    <button class="btn" id="btnHome">Menu</button>
+  </div>
+</div>
+<script>
+// Mochi Merge: 同じおもちを2つ重ねて大きくする 4×4 のスライドパズル。DOM に依存しない規則部分。
+(function (root) {
+  'use strict';
+  const SIZE = 4, UNDOS = 3, GOAL = 11; // 2^11 = 2048
+  const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; };
+  const dailySeed = (date) => fnv('mochi-' + date);
+  // mulberry32。状態を g.rng に持つので保存・再開しても同じ並びになる
+  function rnd(g) {
+    let a = (g.rng = (g.rng + 0x6D2B79F5) | 0);
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  const empties = (g) => g.cells.reduce((a, v, i) => (v ? a : a.concat(i)), []);
+  function spawn(g) {
+    const e = empties(g);
+    if (!e.length) return -1;
+    const i = e[Math.floor(rnd(g) * e.length)];
+    g.cells[i] = rnd(g) < 0.9 ? 1 : 2;
+    g.ids[i] = ++g.nextId;
+    return i;
+  }
+  function newGame(o) {
+    o = o || {};
+    const seed = (o.seed >>> 0) || fnv('mochi-' + Math.random());
+    const g = { size: SIZE, cells: Array(SIZE * SIZE).fill(0), ids: Array(SIZE * SIZE).fill(0), nextId: 0, rng: seed | 0, seed, score: 0, moves: 0, undos: UNDOS, history: [], over: false, reached: false, kept: false };
+    spawn(g); spawn(g);
+    return g;
+  }
+  // 方向 0=上 1=右 2=下 3=左。寄せる端から順に並べたマスの列を返す
+  function lines(dir) {
+    const out = [];
+    for (let k = 0; k < SIZE; k++) {
+      const l = [];
+      for (let j = 0; j < SIZE; j++) {
+        const r = dir === 0 ? j : dir === 2 ? SIZE - 1 - j : k;
+        const c = dir === 3 ? j : dir === 1 ? SIZE - 1 - j : k;
+        l.push(r * SIZE + c);
+      }
+      out.push(l);
+    }
+    return out;
+  }
+  const maxTile = (g) => Math.max(...g.cells);
+  const snap = (g) => ({ cells: g.cells.slice(), ids: g.ids.slice(), score: g.score, moves: g.moves, rng: g.rng, nextId: g.nextId, over: g.over, reached: g.reached });
+  // 盤面だけを動かす。動きの記録（どの札がどこへ行ったか）を返す
+  function slide(g, dir) {
+    const cells = Array(SIZE * SIZE).fill(0), ids = Array(SIZE * SIZE).fill(0);
+    const moves = [], merged = [];
+    let gained = 0, moved = false;
+    for (const l of lines(dir)) {
+      let w = 0, last = -1; // last: まだ合体していない直前の札の置き場所
+      for (const i of l) {
+        const v = g.cells[i];
+        if (!v) continue;
+        if (last >= 0 && cells[l[last]] === v) {
+          const to = l[last];
+          cells[to] = v + 1; gained += 1 << (v + 1);
+          moves.push({ id: g.ids[i], from: i, to, gone: true });
+          merged.push(to);
+          moved = true; last = -1;
+        } else {
+          const to = l[w++];
+          cells[to] = v; ids[to] = g.ids[i];
+          moves.push({ id: g.ids[i], from: i, to });
+          if (to !== i) moved = true;
+          last = w - 1;
+        }
+      }
+    }
+    return { cells, ids, moves, merged, gained, moved };
+  }
+  function canMove(g) {
+    if (g.cells.some((v) => !v)) return true;
+    for (let d = 0; d < 4; d++) if (slide(g, d).moved) return true;
+    return false;
+  }
+  function move(g, dir) {
+    if (g.over) return null;
+    const s = slide(g, dir);
+    if (!s.moved) return null;
+    g.history.push(snap(g)); if (g.history.length > UNDOS) g.history.shift();
+    g.cells = s.cells; g.ids = s.ids;
+    for (const m of s.merged) g.ids[m] = ++g.nextId; // 合体した札は新しい札として出す
+    g.score += s.gained; g.moves++;
+    const spawned = spawn(g);
+    const hitGoal = !g.reached && maxTile(g) >= GOAL;
+    if (hitGoal) g.reached = true;
+    if (!canMove(g)) g.over = true;
+    return { moves: s.moves, merged: s.merged, gained: s.gained, spawned, hitGoal };
+  }
+  function undo(g) {
+    if (!g.undos || !g.history.length) return false;
+    Object.assign(g, g.history.pop());
+    g.undos--;
+    return true;
+  }
+  function load(s) {
+    try {
+      const g = JSON.parse(s);
+      if (!g || !Array.isArray(g.cells) || g.cells.length !== SIZE * SIZE || !Array.isArray(g.ids) || typeof g.rng !== 'number') return null;
+      if (!g.cells.every((v) => Number.isInteger(v) && v >= 0 && v < 20)) return null;
+      g.history = Array.isArray(g.history) ? g.history : [];
+      return g;
+    } catch (e) { return null; }
+  }
+  const value = (v) => (v ? 1 << v : 0);
+  const api = { SIZE, UNDOS, GOAL, newGame, move, slide, undo, canMove, maxTile, value, load, dailySeed, lines, spawn };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.MochiMerge = api;
+})(this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.MochiMerge;
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const TEST = qs.has('test');
+  const QUIET = TEST && !qs.has('fx');
+  const TODAY = qs.get('date') || new Date().toISOString().slice(0, 10);
+  const KEY = 'mm-save', META = 'mm-meta';
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) { /* 同上 */ } },
+  };
+  let meta = { best: 0, top: 0, daily: {}, sound: true, games: 0 };
+  try { meta = Object.assign(meta, JSON.parse(store.get(META)) || {}); } catch (e) { /* 既定のまま */ }
+  const saveMeta = () => store.set(META, JSON.stringify(meta));
+  let g = null, mode = 'free', busy = false;
+  const saveGame = () => { if (g && !g.over) store.set(KEY, JSON.stringify({ game: g, mode, date: TODAY })); };
+
+  // ---- 効果音 ----
+  let ac = null;
+  function tone(f, d, type, v, w) {
+    if (!meta.sound || TEST) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (w || 0), o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.8, t + d);
+      gn.gain.setValueAtTime(v || 0.07, t); gn.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + d);
+    } catch (e) { /* 音が出せなくても遊べる */ }
+  }
+  const sfx = {
+    slide: () => tone(220, 0.06, 'triangle', 0.03),
+    squish: (v) => tone(260 * Math.pow(2, Math.min(v, 14) / 6), 0.14, 'sine', 0.09),
+    goal: () => [0, 4, 7, 12, 16].forEach((k, i) => tone(523 * Math.pow(2, k / 12), 0.25, 'triangle', 0.07, i * 0.09)),
+    over: () => [7, 4, 0].forEach((k, i) => tone(330 * Math.pow(2, k / 12), 0.2, 'sine', 0.06, i * 0.12)),
+  };
+
+  // ---- 盤面 ----
+  const board = $('board');
+  let S = 0, step = 0, cell = 0;
+  function layout() {
+    const f = $('field');
+    S = Math.max(160, Math.floor(Math.min(f.clientWidth - 20, f.clientHeight - 8, 620)));
+    const gap = S * 0.028; cell = (S - gap * 5) / 4; step = cell + gap;
+    board.style.setProperty('--s', `${S}px`);
+    board.style.fontSize = `${S / 4}px`;
+  }
+  const xy = (i) => `translate(${(i % 4) * step + S * 0.028}px, ${Math.floor(i / 4) * step + S * 0.028}px)`;
+  const fs = (v) => { const n = String(G.value(v)).length; return `${cell * (n <= 2 ? 0.34 : n === 3 ? 0.29 : n === 4 ? 0.23 : 0.19)}px`; };
+  const els = new Map(); // 札の id → 要素
+  function tileEl(id, v, i, cls) {
+    const e = document.createElement('div');
+    e.className = `t v${v}${cls ? ' ' + cls : ''}`;
+    e.dataset.id = id; e.dataset.v = v;
+    e.style.setProperty('--xy', xy(i)); e.style.transform = xy(i);
+    e.innerHTML = `<i class="e l"></i><i class="e r"></i><i class="m"></i><i class="k l"></i><i class="k r"></i><b style="font-size:${fs(v)}">${G.value(v)}</b>`;
+    e.setAttribute('role', 'gridcell'); e.setAttribute('aria-label', `${G.value(v)} at row ${Math.floor(i / 4) + 1}, column ${i % 4 + 1}`);
+    board.appendChild(e); els.set(id, e);
+    return e;
+  }
+  function render() {
+    layout();
+    board.innerHTML = ''; els.clear();
+    for (let i = 0; i < 16; i++) { const s = document.createElement('div'); s.className = 'slot'; s.style.transform = xy(i); board.appendChild(s); }
+    g.cells.forEach((v, i) => { if (v) tileEl(g.ids[i], v, i); });
+    hud();
+  }
+  function hud() {
+    $('lv').innerHTML = mode === 'daily' ? `Daily <small>${TODAY}</small>` : 'Mochi Merge';
+    $('score').textContent = g.score;
+    $('best').textContent = Math.max(meta.best, mode === 'free' ? g.score : 0);
+    $('undos').textContent = g.undos;
+    $('bUndo').disabled = !g.undos || !g.history.length;
+  }
+  let toastT = 0;
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 1800); }
+  function plus(n) {
+    if (QUIET || !n) return;
+    const p = document.createElement('div'); p.className = 'plus'; p.textContent = `+${n}`;
+    const r = $('score').getBoundingClientRect(); p.style.left = `${r.left}px`; p.style.top = `${r.bottom}px`;
+    document.body.appendChild(p); setTimeout(() => p.remove(), 700);
+  }
+
+  // ---- 操作 ----
+  function doMove(dir) {
+    if (!g || busy || !$('oTitle').hidden || !$('oGoal').hidden || !$('oOver').hidden) return false;
+    const r = G.move(g, dir);
+    if (!r) { if (g.over) gameOver(); return false; }
+    const finish = () => {
+      busy = false;
+      render();
+      for (const m of r.merged) { const e = els.get(g.ids[m]); if (e && !QUIET) e.classList.add('pop'); }
+      if (r.spawned >= 0 && !QUIET) { const e = els.get(g.ids[r.spawned]); if (e) e.classList.add('new'); }
+      if (r.merged.length) sfx.squish(Math.max(...r.merged.map((m) => g.cells[m]))); else sfx.slide();
+      plus(r.gained);
+      $('live').textContent = r.gained ? `Merged for ${r.gained}. Score ${g.score}.` : '';
+      if (mode === 'free' && g.score > meta.best) { meta.best = g.score; saveMeta(); }
+      saveGame();
+      if (r.hitGoal) { sfx.goal(); confetti(); $('oGoal').hidden = false; $('btnKeep').focus(); }
+      else if (g.over) setTimeout(gameOver, QUIET ? 0 : 400);
+    };
+    if (QUIET) { finish(); return true; }
+    // 先に今の札を行き先へ滑らせてから、合体と新しい札を出す
+    busy = true;
+    for (const m of r.moves) { const e = els.get(m.id); if (e) e.style.transform = xy(m.to); }
+    setTimeout(finish, 105);
+    return true;
+  }
+  const KEYS = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3, w: 0, d: 1, s: 2, a: 3, W: 0, D: 1, S: 2, A: 3 };
+  document.addEventListener('keydown', (e) => {
+    if (e.key in KEYS && $('oTitle').hidden && $('oGoal').hidden && $('oOver').hidden) { e.preventDefault(); doMove(KEYS[e.key]); }
+    else if ((e.key === 'z' || e.key === 'u') && $('oTitle').hidden) $('bUndo').click();
+  });
+  // スワイプ（指でもマウスでも）
+  let p0 = null;
+  $('field').addEventListener('pointerdown', (e) => { p0 = { x: e.clientX, y: e.clientY }; });
+  window.addEventListener('pointerup', (e) => {
+    if (!p0) return;
+    const dx = e.clientX - p0.x, dy = e.clientY - p0.y; p0 = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    doMove(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0));
+  });
+  window.addEventListener('pointercancel', () => { p0 = null; });
+  $('bUndo').addEventListener('click', () => {
+    if (g && G.undo(g)) { $('oOver').hidden = true; render(); saveGame(); toast(`Undone. ${g.undos} left.`); }
+  });
+  $('bNew').addEventListener('click', () => {
+    if (mode === 'daily') { toast('The daily board is one try. Opening a free game.'); }
+    start('free', G.newGame());
+  });
+  function renderSound() { $('bSound').querySelector('.ic').textContent = meta.sound ? '🔊' : '🔇'; $('bSound').setAttribute('aria-label', meta.sound ? 'Sound on' : 'Sound off'); }
+  $('bSound').addEventListener('click', () => { meta.sound = !meta.sound; saveMeta(); renderSound(); });
+  $('bMenu').addEventListener('click', () => { saveGame(); showTitle(); });
+  window.addEventListener('resize', () => { if (g) render(); });
+
+  // ---- 画面の流れ ----
+  function start(m, game) {
+    mode = m;
+    g = game || G.newGame(m === 'daily' ? { seed: G.dailySeed(TODAY) } : {});
+    $('oTitle').hidden = true; $('oOver').hidden = true; $('oGoal').hidden = true;
+    render(); saveGame();
+  }
+  function confetti() {
+    if (QUIET || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const cols = ['--m2', '--m6', '--m7', '--m9', '--m11'].map((v) => getComputedStyle(document.documentElement).getPropertyValue(v));
+    for (let i = 0; i < 40; i++) {
+      const c = document.createElement('div');
+      c.className = 'conf';
+      c.style.left = `${Math.random() * 100}vw`; c.style.top = `${-10 - Math.random() * 20}px`;
+      c.style.background = cols[i % cols.length]; c.style.animationDelay = `${Math.random() * 0.4}s`;
+      document.body.appendChild(c); setTimeout(() => c.remove(), 2000);
+    }
+  }
+  function gameOver() {
+    if (!g.over || !$('oOver').hidden) return;
+    store.del(KEY);
+    const top = G.value(G.maxTile(g));
+    let detail = `Biggest mochi: ${top} · ${g.moves} moves.`;
+    if (mode === 'daily') {
+      if (meta.daily[TODAY] == null) { meta.daily[TODAY] = { score: g.score, top }; detail += ' Your daily score is saved.'; }
+      else detail += ` Practice run. Your daily: ${meta.daily[TODAY].score}.`;
+      $('oTitleTx').textContent = 'Daily board done';
+    } else {
+      meta.games++;
+      const nb = g.score > 0 && g.score >= meta.best;
+      meta.best = Math.max(meta.best, g.score); meta.top = Math.max(meta.top, top);
+      if (nb) detail += ' New best!';
+      $('oTitleTx').textContent = 'No more moves';
+    }
+    saveMeta();
+    $('oScore').textContent = g.score;
+    $('oDetail').textContent = detail;
+    $('btnUndoOver').hidden = !(g.undos && g.history.length) || mode === 'daily';
+    $('btnShare').hidden = mode !== 'daily'; $('btnShare').textContent = 'Copy result';
+    $('btnAgain').textContent = mode === 'daily' ? 'Play a free game' : 'New game';
+    sfx.over();
+    $('oOver').hidden = false; $('btnAgain').focus();
+  }
+  function showTitle() {
+    let saved = null;
+    try { const s = JSON.parse(store.get(KEY)); if (s && !(s.mode === 'daily' && s.date !== TODAY)) { const gg = G.load(JSON.stringify(s.game)); if (gg && !gg.over) saved = { game: gg, mode: s.mode }; } } catch (e) { saved = null; }
+    const resume = saved && saved.mode === 'free' ? saved : null;
+    $('btnPlay').textContent = resume ? `Continue (score ${resume.game.score})` : 'Play';
+    $('btnPlay').onclick = () => start('free', resume ? resume.game : null);
+    const dsaved = saved && saved.mode === 'daily' ? saved : null;
+    const d = meta.daily[TODAY];
+    $('btnDaily').textContent = dsaved ? 'Continue daily board' : 'Daily board';
+    $('btnDaily').onclick = () => start('daily', dsaved ? dsaved.game : null);
+    $('dailyNote').textContent = d ? `Today's daily: ${d.score} points. You can still practice it.` : 'Everyone gets the same mochi in the same spots today. Only your first game counts.';
+    $('oOver').hidden = true; $('oGoal').hidden = true; $('oTitle').hidden = false; $('btnPlay').focus();
+  }
+  $('btnKeep').addEventListener('click', () => { $('oGoal').hidden = true; if (g.over) gameOver(); });
+  $('btnAgain').addEventListener('click', () => start('free'));
+  $('btnUndoOver').addEventListener('click', () => $('bUndo').click());
+  $('btnHome').addEventListener('click', showTitle);
+  $('btnShare').addEventListener('click', () => {
+    const url = globalThis.MM_SHARE_URL || location.origin + location.pathname;
+    const d = meta.daily[TODAY] || { score: g.score, top: G.value(G.maxTile(g)) };
+    const text = `Mochi Merge daily ${TODAY}: ${d.score} points, biggest mochi ${d.top} 🍡\n${url}`;
+    let done = false;
+    const fin = (ok) => { if (!done) { done = true; $('btnShare').textContent = ok ? 'Copied!' : text; } };
+    setTimeout(() => fin(false), 1500); // 許可がない環境では文面を見せる
+    try { navigator.clipboard.writeText(text).then(() => fin(true), () => fin(false)); } catch (e) { fin(false); }
+  });
+  window.addEventListener('pagehide', saveGame);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+  if (TEST) window.__mm = { get game() { return g; }, G, move: doMove, start, render, gameOver, get meta() { return meta; } }; // 検証用
+  renderSound(); showTitle();
+})();
+</script>
+</body>
+</html>
