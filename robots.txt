@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://tatuyaochi-blip.github.io/sitemap.xml

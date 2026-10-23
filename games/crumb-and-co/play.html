@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crumb &amp; Co.</title>
+<meta name="description" content="A cozy idle bakery. Knead dough, hire bakers, chase the daily special and open new branches.">
+<meta name="theme-color" content="#f6e7d0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='78' font-size='80' text-anchor='middle'%3E%F0%9F%A5%90%3C/text%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f6e7d0; --bg2: #efd8b6; --panel: #fffaf1; --ink: #3a2414; --muted: #8a6a4f; --line: #e2c9a6;
+  --accent: #d9822b; --accent-ink: #fff; --good: #3f8f4f; --gold: #c98a0b; --star: #e0a400; --focus: #2563eb; --locked: #ccb89c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #2a1d14; --bg2: #21170f; --panel: #3a2a1d; --ink: #fbeedd; --muted: #c9ab8b; --line: #56402d;
+    --accent: #f0a04b; --accent-ink: #2a1d14; --good: #7fd08e; --gold: #f2c14e; --star: #ffd25a; --focus: #8ab4ff; --locked: #6b5440;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #2a1d14; --bg2: #21170f; --panel: #3a2a1d; --ink: #fbeedd; --muted: #c9ab8b; --line: #56402d;
+  --accent: #f0a04b; --accent-ink: #2a1d14; --good: #7fd08e; --gold: #f2c14e; --star: #ffd25a; --focus: #8ab4ff; --locked: #6b5440;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: linear-gradient(180deg, var(--bg), var(--bg2)); background-color: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overflow-x: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button:disabled { cursor: default; }
+[hidden] { display: none !important; }
+.app { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.25fr); gap: 14px; max-width: 1180px; margin: 0 auto; padding: 12px 14px; height: 100vh; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+.left { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px; padding: 12px; position: relative; overflow: hidden; }
+.brand { font-weight: 900; font-size: 1.3rem; letter-spacing: .02em; display: flex; gap: 8px; align-items: center; width: 100%; justify-content: space-between; }
+.stars { color: var(--star); font-size: .95rem; }
+.coins { font-size: clamp(1.8rem, 4.5vw, 2.6rem); font-weight: 900; line-height: 1.1; margin-top: 4px; }
+.rate { color: var(--muted); font-size: .9rem; }
+.dough { width: clamp(130px, 22vh, 210px); height: clamp(130px, 22vh, 210px); border-radius: 50%; border: 0; background: radial-gradient(circle at 40% 35%, #fff3dc, #f0c98c 60%, #d99a4e); box-shadow: 0 10px 0 rgba(120,70,20,.35), inset 0 -10px 20px rgba(150,90,30,.25); font-size: clamp(3.4rem, 9vh, 5.5rem); display: grid; place-items: center; margin: 8px 0 10px; transition: transform .06s; touch-action: manipulation; }
+.dough:active { transform: scale(.94); box-shadow: 0 5px 0 rgba(120,70,20,.35); }
+.dough-label { font-size: .85rem; color: var(--muted); margin-top: -4px; }
+.float { position: absolute; pointer-events: none; font-weight: 800; color: var(--accent); animation: up .8s forwards; font-size: 1.1rem; }
+@keyframes up { to { transform: translateY(-60px); opacity: 0; } }
+.special { width: 100%; border: 1px dashed var(--accent); border-radius: 12px; padding: 8px 10px; font-size: .88rem; text-align: center; }
+.special b { color: var(--accent); }
+.branch { width: 100%; min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: transparent; font-weight: 700; }
+.branch.ready { background: var(--star); border-color: var(--star); color: #3a2a00; }
+.order { position: absolute; z-index: 3; min-width: 120px; min-height: 52px; padding: 6px 14px; border-radius: 999px; border: 2px solid var(--accent); background: var(--panel); font-weight: 800; box-shadow: 0 6px 16px rgba(0,0,0,.18); animation: bob 1s ease-in-out infinite; }
+.order small { display: block; font-weight: 400; font-size: .72rem; color: var(--muted); }
+@keyframes bob { 50% { transform: translateY(-6px); } }
+.right { display: flex; flex-direction: column; min-height: 0; padding: 10px; gap: 8px; }
+.right-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.right-head h2 { margin: 0; font-size: 1.05rem; }
+.qty { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.qty button { border: 0; background: transparent; min-width: 48px; min-height: 36px; font-weight: 700; }
+.qty button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.list { overflow-y: auto; display: grid; gap: 6px; padding-right: 2px; align-content: start; }
+.row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; text-align: left; width: 100%; min-height: 58px; padding: 6px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); }
+.row:not(:disabled):hover { border-color: var(--accent); }
+.row:disabled { opacity: .55; }
+.row .ic { font-size: 1.8rem; text-align: center; }
+.row .nm { font-weight: 800; }
+.row .sub { font-size: .78rem; color: var(--muted); }
+.row .own { font-weight: 900; font-size: 1.3rem; color: var(--muted); min-width: 2ch; text-align: right; }
+.row .price { font-weight: 800; color: var(--gold); }
+.row.hot { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(217,130,43,.25); }
+.row.locked .nm, .row.locked .ic { color: var(--locked); }
+.bar { height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 3px; }
+.bar i { display: block; height: 100%; background: var(--good); }
+.modal { position: fixed; inset: 0; background: rgba(30,18,8,.55); display: grid; place-items: center; z-index: 10; padding: 16px; }
+.modal .panel { max-width: 420px; width: 100%; padding: 20px; text-align: center; }
+.modal h3 { margin: 0 0 8px; font-size: 1.3rem; }
+.btn { min-height: 46px; padding: 8px 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); font-weight: 700; }
+.btn.go { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+.sound { position: absolute; top: 8px; right: 8px; min-width: 40px; min-height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); }
+.help { font-size: .78rem; color: var(--muted); text-align: center; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+  .left { padding-bottom: 14px; }
+  .list { overflow: visible; }
+}
+@media (max-height: 560px) and (min-width: 761px) {
+  .app { padding: 8px 10px; gap: 10px; }
+  .left { gap: 4px; padding: 8px; }
+  .dough { margin: 2px 0 4px; }
+  .row { min-height: 50px; padding: 4px 8px; }
+  .row .ic { font-size: 1.5rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="panel left" id="left">
+    <div class="brand"><span>🥐 Crumb &amp; Co.</span><span class="stars" id="stars" title="Stars from your branches"></span></div>
+    <div class="coins" id="coins" aria-live="off">0</div>
+    <div class="rate"><span id="rate">0</span> coins per second</div>
+    <button class="dough" id="dough" aria-label="Knead dough">🍞</button>
+    <div class="dough-label">Tap to knead · <span id="clickVal">1</span> per tap</div>
+    <div class="special" id="special">Buy your first Apprentice to open the shop.</div>
+    <button class="branch" id="btnBranch" disabled>Open a new branch</button>
+    <div class="help">Rush orders 🛎️ appear sometimes. Tap them fast!</div>
+    <button class="sound" id="btnSound" aria-label="Sound on">🔊</button>
+    <button class="order" id="order" hidden>🛎️ Rush order!<small id="orderSub"></small></button>
+  </section>
+  <section class="panel right">
+    <div class="right-head">
+      <h2>Your bakery</h2>
+      <div class="qty" role="group" aria-label="Buy amount">
+        <button data-q="1" aria-pressed="true">×1</button><button data-q="10" aria-pressed="false">×10</button><button data-q="max" aria-pressed="false">Max</button>
+      </div>
+    </div>
+    <div class="list" id="list"></div>
+  </section>
+</div>
+
+<div class="modal" id="mAway" hidden role="dialog" aria-modal="true" aria-labelledby="mAwayT">
+  <div class="panel"><h3 id="mAwayT">Welcome back!</h3><p id="mAwayText"></p><div class="btns"><button class="btn go" id="btnAwayOk">Collect</button></div></div>
+</div>
+<div class="modal" id="mBranch" hidden role="dialog" aria-modal="true" aria-labelledby="mBranchT">
+  <div class="panel"><h3 id="mBranchT">Open a new branch?</h3><p id="mBranchText"></p><div class="btns"><button class="btn" id="btnBranchNo">Not yet</button><button class="btn go" id="btnBranchYes">Open branch</button></div></div>
+</div>
+<script>
+// Crumb & Co.: パン屋の放置ゲームのルール（画面に依存しない純粋なロジック）。
+// 時間は ms で渡す（tick(g, dt)）。ブラウザでは globalThis.CrumbCo、Node では module.exports。
+(function (root) {
+  'use strict';
+
+  // 8段階の店の設備。produce: 1秒あたりの売上（1台）
+  const TIERS = [
+    { key: 'apprentice', name: 'Apprentice', icon: '🧑‍🍳', item: 'Bread Roll', itemIcon: '🥖', cost: 15, produce: 0.2 },
+    { key: 'oven', name: 'Brick Oven', icon: '🧱', item: 'Croissant', itemIcon: '🥐', cost: 110, produce: 1.2 },
+    { key: 'mixer', name: 'Stand Mixer', icon: '🌀', item: 'Pretzel', itemIcon: '🥨', cost: 1200, produce: 9 },
+    { key: 'baker', name: 'Master Baker', icon: '👩‍🍳', item: 'Bagel', itemIcon: '🥯', cost: 13000, produce: 50 },
+    { key: 'cafe', name: 'Café Corner', icon: '☕', item: 'Pancakes', itemIcon: '🥞', cost: 140000, produce: 280 },
+    { key: 'cake', name: 'Cake Studio', icon: '🎂', item: 'Cake', itemIcon: '🍰', cost: 1.6e6, produce: 1500 },
+    { key: 'truck', name: 'Delivery Van', icon: '🚚', item: 'Pie', itemIcon: '🥧', cost: 2.2e7, produce: 8500 },
+    { key: 'factory', name: 'Pastry Works', icon: '🏭', item: 'Donut', itemIcon: '🍩', cost: 3.5e8, produce: 50000 },
+  ];
+  const GROWTH = 1.15; // 1台買うごとの値上がり
+  const MILESTONES = [10, 25, 50, 100, 150, 200]; // この台数で、その設備の売上が2倍
+  const SPECIAL_MS = 120000; // 「今日のおすすめ」の入れ替わり
+  const SPECIAL_MULT = 3;
+  const ORDER_EVERY = [40000, 80000]; // 急ぎの注文が来る間隔（ms、範囲）
+  const ORDER_LIFE = 12000; // 押せる時間
+  const ORDER_REWARD_SEC = 60; // 何秒分の売上がもらえるか（最低 30 × こねる1回分）
+  const OFFLINE_MAX_MS = 8 * 3600 * 1000;
+  const OFFLINE_RATE = 0.5;
+  const STAR_BONUS = 0.05;
+
+  // 押す（こねる）力の強化。cost と、こねる1回の売上への効果
+  const CLICK_UPGRADES = [
+    { cost: 50, add: 1 }, { cost: 500, add: 4 }, { cost: 5000, add: 20 }, { cost: 50000, add: 100 },
+    { cost: 5e5, pctOfIncome: 0.02 }, { cost: 5e6, pctOfIncome: 0.03 }, { cost: 5e7, pctOfIncome: 0.05 },
+  ];
+
+  function rng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function newGame(opts) {
+    const o = opts || {};
+    return {
+      v: 1, seed: (o.seed >>> 0) || 1, rngState: 0,
+      coins: 0, earnedRun: 0, earnedAll: 0, stars: o.stars || 0,
+      owned: TIERS.map(() => 0), clickLevel: 0, clicks: 0,
+      special: 0, specialLeft: SPECIAL_MS, order: null, orderIn: ORDER_EVERY[0],
+      time: 0, branches: o.branches || 0,
+    };
+  }
+  // 乱数は状態に持つ（保存・再開しても続きから同じ）
+  function rand(g) { const r = rng(g.seed + g.rngState * 7919); g.rngState++; return r(); }
+
+  const starMult = (g) => 1 + g.stars * STAR_BONUS;
+  function tierMult(g, i) {
+    let m = 1;
+    for (const n of MILESTONES) if (g.owned[i] >= n) m *= 2;
+    if (g.special === i) m *= SPECIAL_MULT;
+    return m;
+  }
+  function tierIncome(g, i) { return g.owned[i] * TIERS[i].produce * tierMult(g, i) * starMult(g); }
+  function income(g) { let s = 0; for (let i = 0; i < TIERS.length; i++) s += tierIncome(g, i); return s; }
+  function clickValue(g) {
+    let v = 1;
+    let pct = 0;
+    for (let i = 0; i < g.clickLevel; i++) { const u = CLICK_UPGRADES[i]; if (u.add) v += u.add; if (u.pctOfIncome) pct += u.pctOfIncome; }
+    return (v + income(g) * pct) * starMult(g);
+  }
+  function cost(g, i, n) {
+    // n台まとめて買う値段（等比級数）
+    const c0 = TIERS[i].cost * Math.pow(GROWTH, g.owned[i]);
+    const k = n || 1;
+    return Math.ceil(c0 * (Math.pow(GROWTH, k) - 1) / (GROWTH - 1));
+  }
+  function maxAffordable(g, i) {
+    const c0 = TIERS[i].cost * Math.pow(GROWTH, g.owned[i]);
+    if (g.coins < c0) return 0;
+    return Math.floor(Math.log(g.coins * (GROWTH - 1) / c0 + 1) / Math.log(GROWTH));
+  }
+  const unlocked = (g, i) => i === 0 || g.owned[i - 1] > 0 || g.earnedRun >= TIERS[i].cost * 0.5;
+
+  function earn(g, x) { g.coins += x; g.earnedRun += x; g.earnedAll += x; }
+  function knead(g) { const v = clickValue(g); earn(g, v); g.clicks++; return v; }
+  function buy(g, i, n) {
+    const k = n === 'max' ? maxAffordable(g, i) : (n || 1);
+    if (k <= 0 || !unlocked(g, i)) return 0;
+    const c = cost(g, i, k);
+    if (g.coins < c) return 0;
+    g.coins -= c;
+    g.owned[i] += k;
+    return k;
+  }
+  function buyClick(g) {
+    const u = CLICK_UPGRADES[g.clickLevel];
+    if (!u || g.coins < u.cost) return false;
+    g.coins -= u.cost; g.clickLevel++;
+    return true;
+  }
+
+  // 時間を進める。戻り値: この間に起きたこと（演出用）
+  function tick(g, dt) {
+    const ev = [];
+    let left = dt;
+    // おすすめの入れ替わりや注文の発生をまたぐときは区切って進める
+    while (left > 0) {
+      const step = Math.min(left, g.specialLeft, g.order ? g.order.left : g.orderIn);
+      earn(g, income(g) * step / 1000);
+      g.time += step; left -= step;
+      g.specialLeft -= step;
+      if (g.specialLeft <= 0) {
+        const open = TIERS.map((_, i) => i).filter((i) => g.owned[i] > 0);
+        const pool = open.length > 1 ? open.filter((i) => i !== g.special) : open.length ? open : [0];
+        g.special = pool[Math.floor(rand(g) * pool.length)];
+        g.specialLeft = SPECIAL_MS;
+        ev.push({ type: 'special', tier: g.special });
+      }
+      if (g.order) {
+        g.order.left -= step;
+        if (g.order.left <= 0) { g.order = null; g.orderIn = nextOrderIn(g); ev.push({ type: 'orderMissed' }); }
+      } else {
+        g.orderIn -= step;
+        if (g.orderIn <= 0) { g.order = { left: ORDER_LIFE, x: rand(g), y: rand(g) }; ev.push({ type: 'order' }); }
+      }
+    }
+    return ev;
+  }
+  function nextOrderIn(g) { return ORDER_EVERY[0] + rand(g) * (ORDER_EVERY[1] - ORDER_EVERY[0]); }
+  function orderReward(g) { return Math.max(income(g) * ORDER_REWARD_SEC, clickValue(g) * 30); }
+  function takeOrder(g) {
+    if (!g.order) return 0;
+    const r = orderReward(g);
+    earn(g, r);
+    g.order = null; g.orderIn = nextOrderIn(g);
+    return r;
+  }
+
+  // 2号店（やり直し）。今回の売上から星が決まる
+  const starsFrom = (earned) => Math.floor(Math.sqrt(earned / 2e7));
+  function starsOnReset(g) { return Math.max(0, starsFrom(g.earnedAll) - g.stars); }
+  function openBranch(g) {
+    const s = starsOnReset(g);
+    if (s <= 0) return 0;
+    const ng = newGame({ seed: g.seed + 1, stars: g.stars + s, branches: g.branches + 1 });
+    ng.earnedAll = g.earnedAll;
+    Object.assign(g, ng);
+    return s;
+  }
+
+  // 離れていた間の売上（最大8時間、半分の速さ）
+  function offline(g, ms) {
+    const t = Math.min(Math.max(0, ms), OFFLINE_MAX_MS);
+    const x = income(g) * (t / 1000) * OFFLINE_RATE;
+    earn(g, x);
+    return { ms: t, coins: x };
+  }
+
+  function serialize(g) { return JSON.stringify(g); }
+  function load(s) {
+    try {
+      const o = JSON.parse(s);
+      if (!o || o.v !== 1 || !Array.isArray(o.owned)) return null;
+      const g = Object.assign(newGame(), o);
+      g.owned = TIERS.map((_, i) => +o.owned[i] || 0);
+      return g;
+    } catch (e) { return null; }
+  }
+
+  // 数の表示: 1,234 / 12.3K / 4.56M ...
+  const UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
+  function fmt(n) {
+    if (!isFinite(n)) return '∞';
+    if (n < 1000) return n < 10 && n % 1 ? n.toFixed(1) : String(Math.floor(n));
+    const e = Math.min(UNITS.length - 1, Math.floor(Math.log10(n) / 3));
+    const v = n / Math.pow(1000, e);
+    return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + UNITS[e];
+  }
+
+  const api = { TIERS, GROWTH, MILESTONES, CLICK_UPGRADES, SPECIAL_MS, ORDER_LIFE, OFFLINE_MAX_MS, STAR_BONUS,
+    newGame, income, tierIncome, tierMult, clickValue, cost, maxAffordable, unlocked, knead, buy, buyClick, tick,
+    orderReward, takeOrder, starsFrom, starsOnReset, openBranch, offline, serialize, load, fmt };
+  root.CrumbCo = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.CrumbCo;
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const TEST = qs.has('test');
+  const KEY = 'cc-save', PREF = 'cc-pref';
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ } },
+  };
+  let pref = { sound: true, qty: '1' };
+  try { pref = Object.assign(pref, JSON.parse(store.get(PREF)) || {}); } catch (e) { /* 既定のまま */ }
+  const savePref = () => store.set(PREF, JSON.stringify(pref));
+
+  let saved = null;
+  try { saved = JSON.parse(store.get(KEY)); } catch (e) { saved = null; }
+  let g = saved && G.load(JSON.stringify(saved.game));
+  if (!g) g = G.newGame({ seed: qs.has('seed') ? +qs.get('seed') : Math.floor(Math.random() * 2 ** 31) + 1 });
+  function save() { store.set(KEY, JSON.stringify({ game: g, at: Date.now() })); }
+
+  // ---- 効果音（Web Audio で合成） ----
+  let ac = null;
+  function tone(freq, dur, type, vol, when) {
+    if (!pref.sound || TEST) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (when || 0);
+      const o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'triangle'; o.frequency.setValueAtTime(freq, t);
+      gn.gain.setValueAtTime(vol || 0.08, t); gn.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + dur);
+    } catch (e) { /* 音が出せなくても遊べる */ }
+  }
+  const sfx = {
+    knead: () => tone(220 + Math.random() * 40, 0.05, 'sine', 0.08),
+    buy: () => { tone(880, 0.06, 'square', 0.04); tone(1320, 0.1, 'square', 0.04, 0.05); },
+    order: () => [660, 880].forEach((f, i) => tone(f, 0.12, 'triangle', 0.08, i * 0.1)),
+    cash: () => [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.12, 'triangle', 0.08, i * 0.07)),
+  };
+
+  // ---- 表示 ----
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const qtyOf = (i) => (pref.qty === 'max' ? Math.max(1, G.maxAffordable(g, i)) : +pref.qty);
+  const mmss = (ms) => { const s = Math.ceil(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+  function buildList() {
+    const rows = [];
+    const u = G.CLICK_UPGRADES[g.clickLevel];
+    if (u) rows.push(`<button class="row" id="rowClick" data-click="1"><span class="ic">✋</span><span><span class="nm">Stronger Hands</span><span class="sub" style="display:block">${u.add ? `+${u.add} per tap` : `Taps also earn ${Math.round(u.pctOfIncome * 100)}% of your per-second income`}</span></span><span class="price">${G.fmt(u.cost)}</span></button>`);
+    G.TIERS.forEach((t, i) => {
+      if (!G.unlocked(g, i)) {
+        if (i === 0 || G.unlocked(g, i - 1)) rows.push(`<button class="row locked" disabled><span class="ic">❔</span><span><span class="nm">???</span><span class="sub" style="display:block">Earn ${G.fmt(t.cost / 2)} to reveal</span></span><span class="own"></span></button>`);
+        return;
+      }
+      rows.push(`<button class="row" data-i="${i}"><span class="ic">${t.icon}</span><span><span class="nm">${esc(t.name)}</span><span class="sub" style="display:block" data-sub="${i}"></span><span class="bar"><i data-bar="${i}"></i></span></span><span style="text-align:right"><span class="own" data-own="${i}"></span><br><span class="price" data-price="${i}"></span></span></button>`);
+    });
+    $('list').innerHTML = rows.join('');
+    listKey = listSig();
+  }
+  // 解放状況が変わったときだけ一覧を作り直す
+  let listKey = '';
+  const listSig = () => `${g.clickLevel}|${G.TIERS.map((_, i) => (G.unlocked(g, i) ? 1 : 0)).join('')}`;
+
+  function render() {
+    if (listSig() !== listKey) buildList();
+    $('coins').textContent = G.fmt(g.coins);
+    $('rate').textContent = G.fmt(G.income(g));
+    $('clickVal').textContent = G.fmt(G.clickValue(g));
+    $('stars').textContent = g.stars ? `★ ${g.stars} (+${Math.round(g.stars * G.STAR_BONUS * 100)}%)` : '';
+    const own = g.owned.some((n) => n > 0);
+    if (own) {
+      const t = G.TIERS[g.special];
+      $('special').innerHTML = `Today's special: ${t.itemIcon} <b>${esc(t.item)}</b> sells ×3 · from your ${esc(t.name)}s · changes in ${mmss(g.specialLeft)}`;
+    }
+    const s = G.starsOnReset(g);
+    const b = $('btnBranch');
+    b.disabled = s <= 0;
+    b.classList.toggle('ready', s > 0);
+    b.textContent = s > 0 ? `Open branch #${g.branches + 2} · +${s} ★` : `New branch unlocks at ${G.fmt(Math.pow(g.stars + 1, 2) * 2e7)} total earned (${G.fmt(g.earnedAll)} so far)`;
+    const u = G.CLICK_UPGRADES[g.clickLevel];
+    if (u && $('rowClick')) $('rowClick').disabled = g.coins < u.cost;
+    G.TIERS.forEach((t, i) => {
+      const sub = document.querySelector(`[data-sub="${i}"]`);
+      if (!sub) return;
+      const n = qtyOf(i);
+      const c = G.cost(g, i, n);
+      const row = sub.closest('.row');
+      row.disabled = g.coins < c;
+      row.classList.toggle('hot', g.special === i && g.owned[i] > 0);
+      document.querySelector(`[data-own="${i}"]`).textContent = g.owned[i];
+      document.querySelector(`[data-price="${i}"]`).textContent = `${pref.qty === '1' ? '' : `×${n} `}${G.fmt(c)}`;
+      const next = G.MILESTONES.find((m) => g.owned[i] < m);
+      sub.textContent = `${t.itemIcon} ${G.fmt(G.tierIncome(g, i))}/s${next ? ` · ×2 at ${next}` : ''}`;
+      const prev = [0, ...G.MILESTONES].filter((m) => m <= g.owned[i]).pop();
+      document.querySelector(`[data-bar="${i}"]`).style.width = next ? `${((g.owned[i] - prev) / (next - prev)) * 100}%` : '100%';
+    });
+    if (g.order) {
+      const o = $('order');
+      if (o.hidden) {
+        const box = $('left').getBoundingClientRect();
+        o.style.left = `${10 + g.order.x * Math.max(0, box.width - 150)}px`;
+        o.style.top = `${70 + g.order.y * Math.max(0, box.height - 150)}px`;
+        o.hidden = false;
+      }
+      $('orderSub').textContent = `+${G.fmt(G.orderReward(g))} · ${Math.ceil(g.order.left / 1000)}s`;
+    } else $('order').hidden = true;
+  }
+
+  function floatAt(x, y, text) {
+    const f = document.createElement('div');
+    const box = $('left').getBoundingClientRect();
+    f.className = 'float'; f.textContent = text;
+    f.style.left = `${x - box.left - 10}px`; f.style.top = `${y - box.top - 20}px`;
+    $('left').appendChild(f);
+    setTimeout(() => f.remove(), 800);
+  }
+
+  // ---- 進行 ----
+  let last = performance.now(), acc = 0;
+  function frame(now) {
+    const dt = Math.min(now - last, 60000);
+    last = now;
+    const ev = G.tick(g, dt);
+    if (ev.some((e) => e.type === 'order')) sfx.order();
+    acc += dt;
+    if (acc > 5000) { acc = 0; save(); }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  $('dough').addEventListener('pointerdown', (e) => {
+    const v = G.knead(g);
+    sfx.knead();
+    const r = e.currentTarget.getBoundingClientRect();
+    floatAt(e.clientX || r.left + r.width / 2, e.clientY || r.top, `+${G.fmt(v)}`);
+    render();
+  });
+  $('dough').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); G.knead(g); sfx.knead(); render(); } });
+  $('list').addEventListener('click', (e) => {
+    const row = e.target.closest('.row'); if (!row || row.disabled) return;
+    if (row.dataset.click) { if (G.buyClick(g)) { sfx.buy(); render(); } return; }
+    const i = +row.dataset.i;
+    if (G.buy(g, i, pref.qty === 'max' ? 'max' : +pref.qty)) { sfx.buy(); save(); render(); }
+  });
+  document.querySelector('.qty').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    pref.qty = b.dataset.q; savePref();
+    for (const x of document.querySelectorAll('.qty button')) x.setAttribute('aria-pressed', String(x === b));
+    render();
+  });
+  $('order').addEventListener('click', (e) => {
+    const r = G.takeOrder(g);
+    if (r) { sfx.cash(); floatAt(e.clientX, e.clientY, `+${G.fmt(r)}`); $('order').hidden = true; render(); }
+  });
+  $('btnBranch').addEventListener('click', () => {
+    const s = G.starsOnReset(g);
+    $('mBranchText').textContent = `You'll earn ${s} ★ (each gives +5% income forever). Your coins, staff and upgrades reset, but stars stay.`;
+    $('mBranch').hidden = false;
+    $('btnBranchYes').focus();
+  });
+  $('btnBranchNo').addEventListener('click', () => { $('mBranch').hidden = true; });
+  $('btnBranchYes').addEventListener('click', () => { G.openBranch(g); $('mBranch').hidden = true; sfx.cash(); save(); buildList(); render(); });
+  $('btnAwayOk').addEventListener('click', () => { $('mAway').hidden = true; });
+  function renderSound() { $('btnSound').textContent = pref.sound ? '🔊' : '🔇'; $('btnSound').setAttribute('aria-label', pref.sound ? 'Sound on' : 'Sound off'); }
+  $('btnSound').addEventListener('click', () => { pref.sound = !pref.sound; savePref(); renderSound(); });
+  for (const x of document.querySelectorAll('.qty button')) x.setAttribute('aria-pressed', String(x.dataset.q === pref.qty));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else last = performance.now(); });
+  window.addEventListener('pagehide', save);
+
+  // 離れていた間の売上
+  if (saved && saved.at) {
+    const away = Date.now() - saved.at;
+    if (away > 60000 && G.income(g) > 0) {
+      const r = G.offline(g, away);
+      $('mAwayText').textContent = `Your bakers kept working for ${Math.round(r.ms / 60000)} minutes and earned ${G.fmt(r.coins)} coins (half speed, up to 8 hours).`;
+      $('mAway').hidden = false;
+    }
+  }
+
+  if (TEST) window.__cc = { get game() { return g; }, G, advance(ms) { const ev = G.tick(g, ms); render(); return ev; }, save, render }; // 検証用
+  renderSound();
+  buildList();
+  render();
+  requestAnimationFrame((t) => { last = t; requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>

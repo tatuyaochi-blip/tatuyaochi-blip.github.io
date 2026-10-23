@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kanji Crawl</title>
+<meta name="description" content="A roguelite where every attack is a kanji. Fight yokai, pick relics, and beat bosses made of the kanji you keep missing. JLPT N5, free in your browser.">
+<meta property="og:title" content="Kanji Crawl: a kanji roguelite">
+<meta property="og:description" content="Every attack is a kanji. Fight yokai, pick relics, and beat bosses built from the kanji you keep missing. Free JLPT N5 browser game.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#b3261e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23b3261e'/%3E%3Ctext x='50' y='74' font-size='64' text-anchor='middle' fill='white'%3E%E6%BC%A2%3C/text%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f3efe6; --panel: #fffaf0; --ink: #1d1a16; --muted: #6d665b; --line: #ddd3c2;
+  --accent: #b3261e; --accent-ink: #fff; --good: #2e7d4f; --bad: #b3261e; --gold: #b7791f; --hp: #2e7d4f; --ehp: #b3261e; --focus: #2563eb;
+  --opt: #fffdf8; --opt-hover: #f6efe1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12100e; --panel: #1d1a17; --ink: #efe9df; --muted: #a79f92; --line: #3a342d;
+    --accent: #e35d4f; --accent-ink: #12100e; --good: #5cc48a; --bad: #ef6b5f; --gold: #e2b04a; --hp: #5cc48a; --ehp: #ef6b5f; --focus: #8ab4ff;
+    --opt: #24201c; --opt-hover: #2d2823;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12100e; --panel: #1d1a17; --ink: #efe9df; --muted: #a79f92; --line: #3a342d;
+  --accent: #e35d4f; --accent-ink: #12100e; --good: #5cc48a; --bad: #ef6b5f; --gold: #e2b04a; --hp: #5cc48a; --ehp: #ef6b5f; --focus: #8ab4ff;
+  --opt: #24201c; --opt-hover: #2d2823;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
+main { max-width: 560px; margin: 0 auto; padding: 14px 16px 40px; min-height: 100vh; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn { min-height: 48px; padding: 10px 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 800; letter-spacing: .02em; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.muted { color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+[hidden] { display: none !important; }
+
+/* タイトル */
+.title { text-align: center; padding-top: 6vh; }
+.logo { font-size: 3.2rem; font-weight: 900; letter-spacing: .02em; line-height: 1; margin: 0; }
+.logo span { color: var(--accent); }
+.tag { margin: 10px 0 22px; color: var(--muted); }
+.big-kanji { font-size: 5.5rem; line-height: 1; font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; }
+.course { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 0 0 16px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+.course button { min-height: 44px; min-width: 60px; padding: 0 6px; border: 0; border-radius: 999px; background: transparent; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+.course button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+.course small { display: block; font-weight: 400; font-size: .7rem; opacity: .85; }
+.daily-info { font-size: .8rem; margin: 6px 0 0; }
+.share { margin: 12px 0; display: grid; gap: 8px; }
+.share textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: .85rem; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--opt); color: var(--ink); }
+.upsell { font-size: .85rem; margin-top: 16px; text-align: left; }
+.stats3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0; }
+.stat b { display: block; font-size: 1.3rem; }
+.stat { font-size: .8rem; color: var(--muted); }
+.how { text-align: left; font-size: .92rem; }
+.how ol { padding-left: 1.2em; margin: 6px 0; }
+.credit { font-size: .75rem; color: var(--muted); margin-top: 20px; }
+.credit a { color: inherit; }
+
+/* 戦闘 */
+.hud { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; font-size: .85rem; }
+.bar { height: 10px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 100%; transition: width .25s; }
+.bar.hp > i { background: var(--hp); } .bar.ehp > i { background: var(--ehp); }
+.bar.time { height: 6px; } .bar.time > i { background: var(--gold); transition: none; }
+.enemy { text-align: center; margin: 10px 0 4px; position: relative; }
+.enemy .icon { font-size: 3.2rem; line-height: 1.1; display: inline-block; }
+.enemy .name { font-weight: 800; }
+.enemy.boss .name { color: var(--accent); }
+.intent { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 999px; font-size: .8rem; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+.intent b { color: var(--ink); }
+.intent[data-intent="charge"] { border-color: var(--bad); }
+.intent[data-intent="charge"] b { color: var(--bad); }
+.intent[data-intent="guard"] { border-color: var(--focus); }
+.shake { animation: shake .3s; }
+@keyframes shake { 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.flash { animation: flash .35s; }
+@keyframes flash { from { background: rgba(179, 38, 30, .25); } to { background: transparent; } }
+.float { position: absolute; left: 50%; top: 0; transform: translateX(-50%); font-weight: 900; font-size: 1.4rem; pointer-events: none; animation: up .8s ease-out forwards; }
+.float.crit { color: var(--gold); font-size: 1.8rem; }
+.float.dmg { color: var(--ehp); }
+@keyframes up { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -40px); } }
+.qcard { text-align: center; padding: 14px 10px 10px; margin: 8px 0 10px; }
+.qlabel { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.prompt { font-size: 4.6rem; line-height: 1.15; font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; margin: 4px 0; min-height: 1.15em; }
+.prompt.text { font-size: 1.6rem; font-family: inherit; font-weight: 800; padding: 18px 0; }
+.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.opt { min-height: 64px; padding: 8px 10px; border-radius: 12px; border: 2px solid var(--line); background: var(--opt); font-weight: 700; font-size: 1rem; line-height: 1.25; position: relative; }
+.opt:hover:not(:disabled) { background: var(--opt-hover); }
+.opt.kanji { font-size: 2rem; font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; }
+.opt .key { position: absolute; top: 4px; left: 8px; font-size: .7rem; color: var(--muted); font-family: system-ui; }
+.opt.right { border-color: var(--good); background: color-mix(in srgb, var(--good) 18%, var(--opt)); }
+.opt.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 15%, var(--opt)); }
+.opt.gone { visibility: hidden; }
+.opt:disabled { cursor: default; }
+.feedback { min-height: 52px; text-align: center; font-size: .92rem; margin-top: 8px; }
+.feedback .ok { color: var(--good); font-weight: 800; }
+.feedback .ng { color: var(--bad); font-weight: 800; }
+.tools { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: .85rem; }
+.combo { font-weight: 900; color: var(--gold); }
+.relics { font-size: 1.1rem; letter-spacing: .1em; min-height: 1.4em; }
+
+/* 報酬 */
+.choices { display: grid; gap: 10px; margin-top: 12px; }
+.choice { text-align: left; display: grid; grid-template-columns: 44px 1fr; gap: 2px 10px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--panel); min-height: 64px; }
+.choice:hover { border-color: var(--accent); }
+.choice .ic { font-size: 1.8rem; grid-row: span 2; text-align: center; }
+.choice b { font-size: 1.05rem; }
+.choice small { color: var(--muted); }
+
+/* 結果・図鑑 */
+.result h2 { margin: 0 0 4px; font-size: 1.6rem; }
+.kv { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin: 12px 0; }
+.kv div b { display: block; font-size: 1.2rem; }
+.kv div { font-size: .82rem; color: var(--muted); }
+.missed { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 8px 0 14px; }
+.missed div { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; font-size: .8rem; display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: center; }
+.missed .k { font-size: 1.7rem; font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; grid-row: span 2; }
+.grim { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; margin: 10px 0; }
+.gk { aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font-size: 1.4rem; font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; display: grid; place-items: center; padding: 0; }
+.gk[data-box="0"] { opacity: .45; }
+.gk[data-box="1"], .gk[data-box="2"] { border-color: var(--gold); }
+.gk[data-box="3"], .gk[data-box="4"] { border-color: var(--good); }
+.gk[data-box="5"] { background: var(--good); color: var(--accent-ink); border-color: var(--good); }
+.ginfo { min-height: 64px; font-size: .9rem; }
+.legend { font-size: .75rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <!-- タイトル -->
+  <section id="scrTitle" class="title">
+    <div class="big-kanji" aria-hidden="true">漢</div>
+    <h1 class="logo">Kanji<span>Crawl</span></h1>
+    <p class="tag">Every attack is a kanji. Every boss is the kanji you keep missing.</p>
+    <div class="course" id="course" role="radiogroup" aria-label="Kanji set" hidden></div>
+    <button class="btn primary" id="btnStart" style="min-width:220px">Start a run</button>
+    <div><button class="btn" id="btnDaily" style="min-width:220px;margin-top:10px">📅 Daily dungeon</button></div>
+    <p class="muted daily-info" id="dailyInfo"></p>
+    <div class="stats3">
+      <div class="stat"><b id="stMastered">0/79</b>kanji mastered</div>
+      <div class="stat"><b id="stBest">0</b>best score</div>
+      <div class="stat"><b id="stRuns">0</b>runs</div>
+    </div>
+    <div class="row" style="justify-content:center">
+      <button class="btn" id="btnGrim">Kanji book</button>
+      <button class="btn" id="btnHow">How to play</button>
+    </div>
+    <div class="panel how" id="how" hidden style="margin-top:14px">
+      <ol>
+        <li>A yokai appears with a kanji. Pick the right answer to attack. Answer fast for a critical hit.</li>
+        <li>Wrong answers or running out of time let the enemy hit you. The correct answer is shown so you learn it.</li>
+        <li>Watch the enemy's next move: 💥 Charging hits harder if you miss but staggers if you answer; 🛡️ Guarding halves damage unless you answer fast.</li>
+        <li>After each fight, choose one of three relics. Each floor ends with a boss built from your weakest kanji.</li>
+        <li>Your progress on every kanji is saved between runs. Floor 2 adds readings, floor 3 asks you to find the kanji from its meaning.</li>
+      </ol>
+      <p class="muted">Keys: 1–4 to answer, H for a hint.</p>
+    </div>
+    <p class="panel upsell" id="upsell" hidden><b>Full version in the works:</b> JLPT N4 to N1 (2,000+ kanji), more yokai and relics. This free N5 edition stays free.</p>
+    <p class="credit">Kanji data from <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project" target="_blank" rel="noopener">KANJIDIC2</a> by the <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noopener">Electronic Dictionary Research and Development Group</a>, used under CC BY-SA 4.0. Level sets follow the community JLPT lists by Jonathan Waller (tanos.co.uk); there is no official kanji list since 2010.</p>
+  </section>
+
+  <!-- 戦闘 -->
+  <section id="scrBattle" hidden>
+    <div class="hud">
+      <div><b id="hudFloor">Floor 1</b> <span class="muted" id="hudRoom">Fight 1/3</span></div>
+      <div class="relics" id="hudRelics" aria-label="Relics"></div>
+      <div class="bar hp" aria-hidden="true"><i id="barHp"></i></div>
+      <div id="txtHp">100/100</div>
+    </div>
+    <div class="enemy" id="enemy">
+      <div class="icon" id="enIcon">👹</div>
+      <div class="name" id="enName">Oni</div>
+      <div class="bar ehp" style="max-width:260px;margin:4px auto 0"><i id="barEhp"></i></div>
+      <div class="intent" id="intent" data-intent="attack"><b id="inLabel">⚔️ Attack</b> <span id="inDesc">A miss takes a normal hit.</span></div>
+    </div>
+    <div class="panel qcard" id="qcard">
+      <div class="qlabel" id="qLabel">Meaning?</div>
+      <div class="prompt" id="qPrompt" lang="ja"></div>
+      <div class="bar time" aria-hidden="true"><i id="barTime"></i></div>
+    </div>
+    <div class="opts" id="opts"></div>
+    <div class="tools">
+      <span>Combo <span class="combo" id="combo">0</span></span>
+      <button class="btn" id="btnHint" style="min-height:40px;padding:6px 12px">🏮 Hint (<span id="hints">1</span>)</button>
+    </div>
+    <div class="feedback" id="feedback" aria-live="polite"></div>
+  </section>
+
+  <!-- 報酬 -->
+  <section id="scrReward" hidden>
+    <h2 style="margin:8px 0 0">Victory! Choose a relic</h2>
+    <p class="muted" id="rwSub" style="margin:4px 0 0"></p>
+    <div class="choices" id="choices"></div>
+  </section>
+
+  <!-- 結果 -->
+  <section id="scrEnd" class="result" hidden>
+    <h2 id="endTitle">Run over</h2>
+    <p class="muted" id="endSub"></p>
+    <div class="kv">
+      <div><b id="endScore">0</b>score</div>
+      <div><b id="endAcc">0%</b>accuracy</div>
+      <div><b id="endCombo">0</b>best combo</div>
+      <div><b id="endMastered">0</b>kanji mastered (all runs)</div>
+    </div>
+    <div class="panel share" id="endShare" hidden>
+      <b>Daily result</b> <span class="muted" id="shareNote"></span>
+      <textarea id="shareText" rows="3" readonly hidden aria-label="Result to share"></textarea>
+      <button class="btn" id="btnShare">Copy result</button>
+    </div>
+    <div id="endMissedWrap"><b>Review these</b><div class="missed" id="endMissed"></div></div>
+    <div class="row">
+      <button class="btn primary" id="btnAgain">Run again</button>
+      <button class="btn" id="btnHome">Title</button>
+    </div>
+  </section>
+
+  <!-- 図鑑 -->
+  <section id="scrGrim" hidden>
+    <div class="row" style="justify-content:space-between"><h2 style="margin:8px 0">Kanji book</h2><button class="btn" id="btnGrimBack">Back</button></div>
+    <p class="legend">Faded: not met yet · gold: learning · green: mastered (box 3+) · filled: perfect. Tap a kanji.</p>
+    <div class="grim" id="grim"></div>
+    <div class="panel ginfo" id="ginfo">Tap a kanji to see it.</div>
+    <p class="credit">Kanji data: <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project" target="_blank" rel="noopener">KANJIDIC2</a> © EDRDG, <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noopener">CC BY-SA 4.0</a>.</p>
+  </section>
+</main>
+<script>globalThis.KC_EDITION = 'free';</script>
+<script>
+globalThis.KanjiSets = {"N5":[{"k":"日","on":["ニチ","ジツ"],"kun":["ひ"],"m":["day","sun","Japan"],"s":4,"f":1},{"k":"一","on":["イチ","イツ"],"kun":["ひと","ひと(つ)"],"m":["one"],"s":1,"f":2},{"k":"国","on":["コク"],"kun":["くに"],"m":["country"],"s":8,"f":3},{"k":"人","on":["ジン","ニン"],"kun":["ひと"],"m":["person"],"s":2,"f":5},{"k":"年","on":["ネン"],"kun":["とし"],"m":["year","counter for years"],"s":6,"f":6},{"k":"大","on":["ダイ","タイ"],"kun":["おお","おお(きい)"],"m":["large","big"],"s":3,"f":7},{"k":"十","on":["ジュウ","ジッ"],"kun":["とお","と"],"m":["ten"],"s":2,"f":8},{"k":"二","on":["ニ","ジ"],"kun":["ふた","ふた(つ)"],"m":["two"],"s":2,"f":9},{"k":"本","on":["ホン"],"kun":["もと"],"m":["book","present","main"],"s":5,"f":10},{"k":"中","on":["チュウ"],"kun":["なか","うち"],"m":["in","inside","middle"],"s":4,"f":11},{"k":"長","on":["チョウ"],"kun":["なが(い)","おさ"],"m":["long","leader","superior"],"s":8,"f":12},{"k":"出","on":["シュツ","スイ"],"kun":["で(る)","だ(す)"],"m":["exit","leave","go out"],"s":5,"f":13},{"k":"三","on":["サン","ゾウ"],"kun":["み","み(つ)"],"m":["three"],"s":3,"f":14},{"k":"時","on":["ジ"],"kun":["とき"],"m":["time","hour"],"s":10,"f":16},{"k":"行","on":["コウ","ギョウ"],"kun":["い(く)","ゆ(く)"],"m":["going","journey","carry out"],"s":6,"f":20},{"k":"見","on":["ケン"],"kun":["み(る)","み(える)"],"m":["see","hopes","chances"],"s":7,"f":22},{"k":"月","on":["ゲツ","ガツ"],"kun":["つき"],"m":["month","moon"],"s":4,"f":23},{"k":"後","on":["ゴ","コウ"],"kun":["のち","うし(ろ)"],"m":["behind","back","later"],"s":9,"f":26},{"k":"前","on":["ゼン"],"kun":["まえ"],"m":["in front","before"],"s":9,"f":27},{"k":"生","on":["セイ","ショウ"],"kun":["い(きる)","い(かす)"],"m":["life","genuine","birth"],"s":5,"f":29},{"k":"五","on":["ゴ"],"kun":["いつ","いつ(つ)"],"m":["five"],"s":4,"f":31},{"k":"間","on":["カン","ケン"],"kun":["あいだ","ま"],"m":["interval","space"],"s":12,"f":33},{"k":"上","on":["ジョウ","ショウ"],"kun":["うえ","うわ"],"m":["above","up"],"s":3,"f":35},{"k":"東","on":["トウ"],"kun":["ひがし"],"m":["east"],"s":8,"f":37},{"k":"四","on":["シ"],"kun":["よ","よ(つ)"],"m":["four"],"s":5,"f":47},{"k":"今","on":["コン","キン"],"kun":["いま"],"m":["now"],"s":4,"f":49},{"k":"金","on":["キン","コン"],"kun":["かね","かな"],"m":["gold"],"s":8,"f":53},{"k":"九","on":["キュウ","ク"],"kun":["ここの","ここの(つ)"],"m":["nine"],"s":2,"f":55},{"k":"入","on":["ニュウ","ジュ"],"kun":["い(る)","い(れる)"],"m":["enter","insert"],"s":2,"f":56},{"k":"学","on":["ガク"],"kun":["まな(ぶ)"],"m":["study","learning","science"],"s":8,"f":63},{"k":"高","on":["コウ"],"kun":["たか(い)","たか"],"m":["tall","high","expensive"],"s":10,"f":65},{"k":"円","on":["エン"],"kun":["まる(い)","まる"],"m":["circle","yen","round"],"s":4,"f":69},{"k":"子","on":["シ","ス"],"kun":["こ","ね"],"m":["child","sign of the rat","11PM-1AM"],"s":3,"f":72},{"k":"外","on":["ガイ","ゲ"],"kun":["そと","ほか"],"m":["outside"],"s":5,"f":81},{"k":"八","on":["ハチ","ハツ"],"kun":["や","や(つ)"],"m":["eight"],"s":2,"f":92},{"k":"六","on":["ロク","リク"],"kun":["む","む(つ)"],"m":["six"],"s":4,"f":93},{"k":"下","on":["カ","ゲ"],"kun":["した","しも"],"m":["below","down","descend"],"s":3,"f":97},{"k":"来","on":["ライ","タイ"],"kun":["く(る)","きた(る)"],"m":["come","due","next"],"s":7,"f":102},{"k":"気","on":["キ","ケ"],"kun":["き"],"m":["spirit","mind","air"],"s":6,"f":113},{"k":"小","on":["ショウ"],"kun":["ちい(さい)","こ"],"m":["little","small"],"s":3,"f":114},{"k":"七","on":["シチ"],"kun":["なな","なな(つ)"],"m":["seven"],"s":2,"f":115},{"k":"山","on":["サン","セン"],"kun":["やま"],"m":["mountain"],"s":3,"f":131},{"k":"話","on":["ワ"],"kun":["はな(す)","はなし"],"m":["tale","talk"],"s":13,"f":134},{"k":"女","on":["ジョ","ニョ"],"kun":["おんな","め"],"m":["woman","female"],"s":3,"f":151},{"k":"北","on":["ホク"],"kun":["きた"],"m":["north"],"s":5,"f":153},{"k":"午","on":["ゴ"],"kun":["うま"],"m":["noon","sign of the horse","11AM-1PM"],"s":4,"f":154},{"k":"百","on":["ヒャク","ビャク"],"kun":["もも"],"m":["hundred"],"s":6,"f":163},{"k":"書","on":["ショ"],"kun":["か(く)"],"m":["write"],"s":10,"f":169},{"k":"先","on":["セン"],"kun":["さき","ま(ず)"],"m":["before","ahead","previous"],"s":6,"f":173},{"k":"名","on":["メイ","ミョウ"],"kun":["な"],"m":["name","noted","distinguished"],"s":6,"f":177},{"k":"川","on":["セン"],"kun":["かわ"],"m":["stream","river"],"s":3,"f":181},{"k":"千","on":["セン"],"kun":["ち"],"m":["thousand"],"s":3,"f":195},{"k":"水","on":["スイ"],"kun":["みず"],"m":["water"],"s":4,"f":223},{"k":"半","on":["ハン"],"kun":["なか(ば)"],"m":["half","middle","odd number"],"s":5,"f":224},{"k":"男","on":["ダン","ナン"],"kun":["おとこ","お"],"m":["male"],"s":7,"f":240},{"k":"西","on":["セイ","サイ"],"kun":["にし"],"m":["west","Spain"],"s":6,"f":259},{"k":"電","on":["デン"],"kun":[],"m":["electricity"],"s":13,"f":268},{"k":"校","on":["コウ","キョウ"],"kun":[],"m":["exam","school","printing"],"s":10,"f":294},{"k":"語","on":["ゴ"],"kun":["かた(る)","かた(らう)"],"m":["word","speech","language"],"s":14,"f":301},{"k":"土","on":["ド","ト"],"kun":["つち"],"m":["soil","earth","ground"],"s":3,"f":307},{"k":"木","on":["ボク","モク"],"kun":["き","こ"],"m":["tree","wood"],"s":4,"f":317},{"k":"聞","on":["ブン","モン"],"kun":["き(く)","き(こえる)"],"m":["hear","ask","listen"],"s":14,"f":319},{"k":"食","on":["ショク","ジキ"],"kun":["く(う)","く(らう)"],"m":["eat","food"],"s":9,"f":328},{"k":"車","on":["シャ"],"kun":["くるま"],"m":["car"],"s":7,"f":333},{"k":"何","on":["カ"],"kun":["なに","なん"],"m":["what"],"s":7,"f":340},{"k":"南","on":["ナン","ナ"],"kun":["みなみ"],"m":["south"],"s":9,"f":341},{"k":"万","on":["マン","バン"],"kun":["よろず"],"m":["ten thousand","10,000"],"s":3,"f":375},{"k":"毎","on":["マイ"],"kun":["ごと"],"m":["every"],"s":6,"f":436},{"k":"白","on":["ハク","ビャク"],"kun":["しろ","しら"],"m":["white"],"s":5,"f":483},{"k":"天","on":["テン"],"kun":["あまつ","あめ"],"m":["heavens","sky","imperial"],"s":4,"f":512},{"k":"母","on":["ボ"],"kun":["はは","も"],"m":["mother"],"s":5,"f":570},{"k":"火","on":["カ"],"kun":["ひ","ほ"],"m":["fire"],"s":4,"f":574},{"k":"右","on":["ウ","ユウ"],"kun":["みぎ"],"m":["right"],"s":5,"f":602},{"k":"読","on":["ドク","トク"],"kun":["よ(む)"],"m":["read"],"s":14,"f":618},{"k":"友","on":["ユウ"],"kun":["とも"],"m":["friend"],"s":4,"f":622},{"k":"左","on":["サ","シャ"],"kun":["ひだり"],"m":["left"],"s":5,"f":630},{"k":"休","on":["キュウ"],"kun":["やす(む)","やす(まる)"],"m":["rest","day off","retire"],"s":6,"f":642},{"k":"父","on":["フ"],"kun":["ちち"],"m":["father"],"s":4,"f":646},{"k":"雨","on":["ウ"],"kun":["あめ","あま"],"m":["rain"],"s":8,"f":950}]};
+</script>
+<script>
+// Kanji Crawl: 漢字に答えて戦うローグライトのルール（画面に依存しない純粋なロジック）。
+// ブラウザでは globalThis.KanjiCrawl、Node では module.exports で使う。
+(function (root) {
+  'use strict';
+
+  function rng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+  function shuffle(r, arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  // ---- 構成 ----
+  const FLOORS = 3;
+  const BATTLES_PER_FLOOR = 3; // 各階: 戦闘3回 → ボス
+  const BASE_TIME = 9000; // 1問の制限時間(ms)
+  const FAST = 3000; // これより速いと会心
+
+  const ENEMIES = [
+    { name: 'Kappa', icon: '🐢', hp: 32, atk: 12, moves: ['attack', 'guard'] },
+    { name: 'Tanuki', icon: '🦝', hp: 36, atk: 13, moves: ['attack', 'attack', 'charge'] },
+    { name: 'Kitsune', icon: '🦊', hp: 40, atk: 14, moves: ['guard', 'attack', 'charge'] },
+    { name: 'Tengu', icon: '👺', hp: 44, atk: 15, moves: ['charge', 'attack'] },
+    { name: 'Yurei', icon: '👻', hp: 42, atk: 17, moves: ['attack', 'guard', 'charge'] },
+    { name: 'Oni', icon: '👹', hp: 50, atk: 18, moves: ['attack', 'charge', 'attack'] },
+  ];
+  const BOSSES = [
+    { name: 'Stone Golem of Strokes', icon: '🗿', hp: 100, atk: 18, moves: ['attack', 'guard', 'attack', 'charge'] },
+    { name: 'Daruma of Doubt', icon: '🎎', hp: 140, atk: 22, moves: ['guard', 'attack', 'charge', 'attack'] },
+    { name: 'Dragon of the Lost Readings', icon: '🐉', hp: 190, atk: 26, moves: ['attack', 'charge', 'guard', 'charge'] },
+  ];
+
+  // 敵の次の行動（毎問の前に画面に出す）。charge: 外すと1.5倍の被弾、当てると怯んで+50%。guard: 会心以外は半減
+  const INTENTS = {
+    attack: { icon: '⚔️', label: 'Attack', desc: 'A miss takes a normal hit.' },
+    charge: { icon: '💥', label: 'Charging', desc: 'Miss: you take +50%. Hit: +50% damage.' },
+    guard: { icon: '🛡️', label: 'Guarding', desc: 'Only fast (critical) answers break through.' },
+  };
+
+  // 報酬（遺物）。apply はランの状態を書き換える
+  const RELICS = {
+    sharpen: { name: 'Whetstone', icon: '🗡️', desc: '+4 damage on every hit', apply: (g) => { g.dmg += 4; } },
+    vitality: { name: 'Rice Ball', icon: '🍙', desc: '+20 max HP and heal 20', apply: (g) => { g.maxHp += 20; g.hp = Math.min(g.maxHp, g.hp + 20); } },
+    potion: { name: 'Green Tea', icon: '🍵', desc: 'Heal 45 HP', repeat: true, apply: (g) => { g.hp = Math.min(g.maxHp, g.hp + 45); } },
+    focus: { name: 'Incense', icon: '🕯️', desc: '+3 seconds to answer', apply: (g) => { g.timeLimit += 3000; } },
+    insight: { name: 'Lantern', icon: '🏮', desc: '3 hints: remove two wrong choices', repeat: true, apply: (g) => { g.hints += 3; } },
+    keeper: { name: 'Omamori', icon: '🧧', desc: 'The first miss in each battle keeps your combo', apply: (g) => { g.flags.keeper = true; } },
+    vampire: { name: 'Bat Fan', icon: '🪭', desc: 'Heal 3 HP on every correct answer', apply: (g) => { g.flags.vampire = true; } },
+    scholar: { name: 'Brush', icon: '🖌️', desc: 'Reading questions deal +60% damage', apply: (g) => { g.flags.scholar = true; } },
+    shield: { name: 'Kabuto', icon: '⛑️', desc: 'Take 35% less damage', apply: (g) => { g.flags.shield = true; } },
+  };
+
+  // ---- 習熟度（間隔反復の箱 0〜5）。ランをまたいで保存する ----
+  function masteryOf(store, k) { return store[k] || { box: 0, seen: 0, ok: 0, ng: 0 }; }
+  function bump(store, k, ok) {
+    const m = Object.assign({}, masteryOf(store, k));
+    m.seen++;
+    if (ok) { m.ok++; m.box = Math.min(5, m.box + 1); } else { m.ng++; m.box = Math.max(0, m.box - 2); }
+    store[k] = m;
+    return m;
+  }
+  // 箱が低い字ほど出やすい
+  function weightOf(store, k) { const m = masteryOf(store, k); return (6 - m.box) * (6 - m.box) + (m.seen === 0 ? 4 : 0); }
+  function weightedPick(r, pool, store, exclude) {
+    const c = pool.filter((e) => !exclude.has(e.k));
+    const list = c.length ? c : pool;
+    let total = 0;
+    for (const e of list) total += weightOf(store, e.k);
+    let x = r() * total;
+    for (const e of list) { x -= weightOf(store, e.k); if (x <= 0) return e; }
+    return list[list.length - 1];
+  }
+  // 苦手な字（ボス用）: 箱が低く、間違いが多い順
+  function weakest(pool, store, n) {
+    return pool.slice().sort((a, b) => {
+      const ma = masteryOf(store, a.k), mb = masteryOf(store, b.k);
+      return (ma.box - mb.box) || (mb.ng - ma.ng) || (a.f - b.f);
+    }).slice(0, n);
+  }
+
+  // ---- 問題 ----
+  const reading = (e) => [e.on[0], e.kun[0]].filter(Boolean).join(' / ');
+  const meaning = (e) => e.m.slice(0, 2).join(', ');
+  function makeQuestion(g, e) {
+    const r = g.rq;
+    // 1階は意味、2階から読み、3階から逆引き（意味→漢字）も混ぜる
+    const modes = ['meaning'];
+    if (g.floor >= 2) modes.push('reading');
+    if (g.floor >= 3) modes.push('reverse');
+    const mode = pick(r, modes);
+    const show = mode === 'reverse' ? meaning(e) : e.k;
+    const ans = mode === 'meaning' ? meaning(e) : mode === 'reading' ? reading(e) : e.k;
+    const label = (x) => (mode === 'meaning' ? meaning(x) : mode === 'reading' ? reading(x) : x.k);
+    // 同じ表記の選択肢や、逆引きで意味が同じ別の字（N1 の「plum」など）は出さない
+    const used = new Set([ans]), others = [];
+    for (const x of shuffle(r, g.pool.filter((x) => x.k !== e.k))) {
+      const l = label(x);
+      if (used.has(l) || (mode === 'reverse' && meaning(x) === show)) continue;
+      used.add(l); others.push(l);
+      if (others.length === 3) break;
+    }
+    const options = shuffle(r, [ans, ...others]);
+    return { kanji: e, mode, prompt: show, options, answer: options.indexOf(ans), removed: [] };
+  }
+
+  // ---- ラン ----
+  function newRun(opts) {
+    const seed = opts.seed >>> 0;
+    const g = {
+      // r: 敵と報酬（日替わりで全員共通）、rq: 出題（習熟度で人ごとに変わる）
+      seed, r: rng(seed), rq: rng(seed ^ 0x9e3779b9), pool: opts.pool, mastery: opts.mastery || {},
+      floor: 1, battle: 0, phase: 'battle', // battle | reward | won | lost
+      hp: 100, maxHp: 100, dmg: 10, timeLimit: BASE_TIME, hints: 1, combo: 0, bestCombo: 0,
+      flags: {}, relics: [], enemy: null, q: null, keeperUsed: false,
+      stats: { correct: 0, wrong: 0, crits: 0, learned: new Set(), missed: new Map() },
+      rewardChoices: [], lastHit: null, recent: new Set(),
+    };
+    spawn(g);
+    return g;
+  }
+  function isBoss(g) { return g.battle === BATTLES_PER_FLOOR; }
+  function spawn(g) {
+    const scale = 1 + (g.floor - 1) * 0.35;
+    const base = isBoss(g) ? BOSSES[g.floor - 1] : pick(g.r, ENEMIES);
+    g.enemy = { name: base.name, icon: base.icon, boss: isBoss(g), maxHp: Math.round(base.hp * scale), hp: Math.round(base.hp * scale), atk: Math.round(base.atk * (isBoss(g) ? 1 : scale)), moves: base.moves, turn: 0, intent: base.moves[0] };
+    g.keeperUsed = false;
+    g.bossQueue = isBoss(g) ? weakest(g.pool, g.mastery, 8).map((e) => e.k) : null;
+    nextQuestion(g);
+  }
+  function nextQuestion(g) {
+    let e;
+    if (g.bossQueue && g.bossQueue.length) {
+      const k = g.bossQueue.shift();
+      e = g.pool.find((x) => x.k === k);
+    } else {
+      e = weightedPick(g.rq, g.pool, g.mastery, g.recent);
+    }
+    g.recent.add(e.k);
+    if (g.recent.size > 6) g.recent.delete(g.recent.values().next().value);
+    g.q = makeQuestion(g, e);
+  }
+
+  // 答える。choice = -1 は時間切れ。戻り値は演出用の結果
+  function answer(g, choice, elapsedMs) {
+    if (g.phase !== 'battle') return null;
+    const q = g.q;
+    const ok = choice === q.answer && elapsedMs <= g.timeLimit;
+    const m = bump(g.mastery, q.kanji.k, ok);
+    const res = { ok, correct: q.options[q.answer], kanji: q.kanji, mode: q.mode, box: m.box };
+    if (ok) {
+      g.stats.correct++;
+      if (m.box >= 3) g.stats.learned.add(q.kanji.k);
+      g.combo++;
+      g.bestCombo = Math.max(g.bestCombo, g.combo);
+      let dmg = g.dmg + Math.min(g.combo - 1, 10) * 2;
+      if (q.mode === 'reading' && g.flags.scholar) dmg = Math.round(dmg * 1.6);
+      const crit = elapsedMs <= FAST;
+      if (crit) { dmg = Math.round(dmg * 1.5); g.stats.crits++; }
+      const intent = g.enemy.intent;
+      if (intent === 'charge') { dmg = Math.round(dmg * 1.5); res.stagger = true; }
+      if (intent === 'guard' && !crit) { dmg = Math.round(dmg * 0.5); res.guarded = true; }
+      g.enemy.hp = Math.max(0, g.enemy.hp - dmg);
+      if (g.flags.vampire) g.hp = Math.min(g.maxHp, g.hp + 3);
+      Object.assign(res, { dmg, crit });
+    } else {
+      g.stats.wrong++;
+      g.stats.missed.set(q.kanji.k, q.kanji);
+      if (g.flags.keeper && !g.keeperUsed) g.keeperUsed = true; else g.combo = 0;
+      let hit = g.enemy.atk;
+      if (g.enemy.intent === 'charge') { hit = Math.round(hit * 1.5); res.charged = true; }
+      if (g.flags.shield) hit = Math.round(hit * 0.65);
+      g.hp = Math.max(0, g.hp - hit);
+      Object.assign(res, { taken: hit, timeout: choice === -1 });
+    }
+    if (g.hp <= 0) { g.phase = 'lost'; return res; }
+    if (g.enemy.hp <= 0) {
+      res.defeated = true;
+      if (isBoss(g)) {
+        if (g.floor >= FLOORS) { g.phase = 'won'; return res; }
+        g.floor++; g.battle = 0;
+        g.hp = Math.min(g.maxHp, g.hp + Math.round(g.maxHp * 0.3));
+        res.floorCleared = true;
+        spawn(g);
+      } else {
+        g.battle++;
+        g.phase = 'reward';
+        g.rewardChoices = rollRewards(g);
+      }
+      return res;
+    }
+    g.enemy.turn++;
+    g.enemy.intent = g.enemy.moves[g.enemy.turn % g.enemy.moves.length];
+    nextQuestion(g);
+    return res;
+  }
+  function rollRewards(g) {
+    const keys = Object.keys(RELICS).filter((k) => RELICS[k].repeat || !g.relics.includes(k));
+    return shuffle(g.r, keys).slice(0, 3);
+  }
+  function chooseReward(g, key) {
+    if (g.phase !== 'reward' || !g.rewardChoices.includes(key)) return false;
+    RELICS[key].apply(g);
+    if (!RELICS[key].repeat) g.relics.push(key);
+    g.phase = 'battle';
+    g.rewardChoices = [];
+    spawn(g);
+    return true;
+  }
+  function useHint(g) {
+    if (g.phase !== 'battle' || g.hints <= 0 || g.q.removed.length) return false;
+    const wrong = g.q.options.map((_, i) => i).filter((i) => i !== g.q.answer);
+    g.q.removed = shuffle(g.rq, wrong).slice(0, 2);
+    g.hints--;
+    return true;
+  }
+  function summary(g) {
+    const total = g.stats.correct + g.stats.wrong;
+    return {
+      result: g.phase, floor: g.floor, correct: g.stats.correct, wrong: g.stats.wrong,
+      accuracy: total ? Math.round((g.stats.correct / total) * 100) : 0,
+      bestCombo: g.bestCombo, crits: g.stats.crits, relics: g.relics.slice(),
+      missed: [...g.stats.missed.values()], learned: [...g.stats.learned],
+      score: (g.floor - 1) * 1000 + g.battle * 250 + g.stats.correct * 10 + g.bestCombo * 5 + (g.phase === 'won' ? 2000 : 0),
+    };
+  }
+  // 日替わりダンジョンの種（UTCの日付 'YYYY-MM-DD' から決まる）
+  function dailySeed(date) {
+    let h = 2166136261;
+    for (const c of 'kanji-crawl-daily:' + date) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function masteredCount(pool, store) { return pool.filter((e) => masteryOf(store, e.k).box >= 3).length; }
+
+  const api = { rng, dailySeed, FLOORS, BATTLES_PER_FLOOR, BASE_TIME, FAST, ENEMIES, BOSSES, RELICS, INTENTS, masteryOf, bump, weakest, reading, meaning, newRun, answer, chooseReward, useHint, summary, masteredCount, isBoss };
+  root.KanjiCrawl = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.KanjiCrawl, SETS = window.KanjiSets;
+  const $ = (id) => document.getElementById(id);
+  const EDITION = globalThis.KC_EDITION || 'full';
+  const COURSES = Object.keys(SETS);
+  const qs = new URLSearchParams(location.search);
+  const FAST_MODE = qs.has('fast'); // 検証用: 演出の待ち時間を短くする
+
+  const store = {
+    get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 保存できなくても遊べる */ } },
+  };
+  const mastery = store.get('kc-mastery', {});
+  const meta = store.get('kc-meta', { best: 0, runs: 0 });
+  if (!meta.bestBy) meta.bestBy = { N5: meta.best || 0 };
+  let course = COURSES.includes(meta.course) ? meta.course : COURSES[0];
+  let POOL = SETS[course];
+
+  let g = null, qStart = 0, timer = 0, locked = false;
+  const SCREENS = ['scrTitle', 'scrBattle', 'scrReward', 'scrEnd', 'scrGrim'];
+  function show(id) { for (const s of SCREENS) $(s).hidden = s !== id; window.scrollTo(0, 0); }
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function renderCourse() {
+    const el = $('course');
+    el.hidden = COURSES.length < 2;
+    el.innerHTML = COURSES.map((c) => `<button role="radio" data-c="${c}" aria-checked="${c === course}">${c}<small>${SETS[c].length} kanji</small></button>`).join('');
+  }
+  function renderTitle() {
+    renderCourse();
+    renderDaily();
+    $('upsell').hidden = EDITION !== 'free';
+    $('stMastered').textContent = `${G.masteredCount(POOL, mastery)}/${POOL.length}`;
+    $('stBest').textContent = meta.bestBy[course] || 0;
+    $('stRuns').textContent = meta.runs;
+    show('scrTitle');
+  }
+
+  const TODAY = qs.get('date') || new Date().toISOString().slice(0, 10); // 日替わりはUTCの日付で切り替わる
+  const SHARE_URL = 'https://tatuyaochi-blip.github.io/kanji-crawl/';
+  let daily = false;
+  const dailyRec = () => { const d = (meta.dailyBy || {})[course]; return d && d.date === TODAY ? d : null; };
+  function renderDaily() {
+    const d = dailyRec();
+    $('dailyInfo').textContent = d
+      ? `Today's daily: ${d.result === 'won' ? 'cleared' : 'floor ' + d.floor} · ${d.score} pts. Replays are practice.`
+      : `Today's daily (${TODAY}): same dungeon for everyone. First try counts.`;
+  }
+  function startRun(isDaily) {
+    daily = !!isDaily;
+    const seed = daily ? G.dailySeed(`${TODAY}:${course}`) : qs.has('seed') ? +qs.get('seed') : Math.floor(Math.random() * 2 ** 32);
+    g = G.newRun({ seed, pool: POOL, mastery });
+    meta.runs++;
+    store.set('kc-meta', meta);
+    show('scrBattle');
+    renderBattle(true);
+  }
+
+  const MODE_LABEL = { meaning: 'Meaning?', reading: 'Reading? (on / kun)', reverse: 'Which kanji?' };
+  function renderBattle(newQ) {
+    const e = g.enemy;
+    $('hudFloor').textContent = `${daily ? 'Daily · ' : ''}Floor ${g.floor}`;
+    $('hudRoom').textContent = e.boss ? 'BOSS' : `Fight ${g.battle + 1}/${G.BATTLES_PER_FLOOR}`;
+    $('hudRelics').textContent = g.relics.map((k) => G.RELICS[k].icon).join('');
+    $('hudRelics').title = g.relics.map((k) => G.RELICS[k].name).join(', ');
+    $('barHp').style.width = `${(g.hp / g.maxHp) * 100}%`;
+    $('txtHp').textContent = `${g.hp}/${g.maxHp}`;
+    $('enemy').classList.toggle('boss', e.boss);
+    $('enIcon').textContent = e.icon;
+    $('enName').textContent = e.name;
+    $('barEhp').style.width = `${(e.hp / e.maxHp) * 100}%`;
+    const it = G.INTENTS[e.intent];
+    $('intent').dataset.intent = e.intent;
+    $('inLabel').textContent = `${it.icon} ${it.label}`;
+    $('inDesc').textContent = it.desc;
+    $('combo').textContent = g.combo;
+    $('hints').textContent = g.hints;
+    $('btnHint').disabled = g.hints <= 0;
+    if (!newQ) return;
+    const q = g.q;
+    $('qLabel').textContent = MODE_LABEL[q.mode];
+    $('qPrompt').textContent = q.prompt;
+    $('qPrompt').classList.toggle('text', q.mode === 'reverse');
+    $('opts').innerHTML = q.options.map((o, i) => `<button class="opt${q.mode === 'reverse' ? ' kanji' : ''}" data-i="${i}" ${q.mode === 'reverse' ? 'lang="ja"' : ''}><span class="key">${i + 1}</span>${esc(o)}</button>`).join('');
+    $('feedback').innerHTML = '';
+    locked = false;
+    qStart = performance.now();
+    tick();
+  }
+  function tick() {
+    cancelAnimationFrame(timer);
+    const step = () => {
+      if (!g || g.phase !== 'battle' || locked) return;
+      const el = performance.now() - qStart;
+      $('barTime').style.width = `${Math.max(0, 1 - el / g.timeLimit) * 100}%`;
+      if (el >= g.timeLimit) { onAnswer(-1); return; }
+      timer = requestAnimationFrame(step);
+    };
+    timer = requestAnimationFrame(step);
+  }
+
+  function floatText(text, cls) {
+    const f = document.createElement('div');
+    f.className = 'float ' + cls;
+    f.textContent = text;
+    $('enemy').appendChild(f);
+    setTimeout(() => f.remove(), 800);
+  }
+  function retrigger(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+  function onAnswer(i) {
+    if (locked || g.phase !== 'battle') return;
+    locked = true;
+    cancelAnimationFrame(timer);
+    const q = g.q;
+    const res = G.answer(g, i, performance.now() - qStart);
+    const btns = [...$('opts').children];
+    btns.forEach((b) => { b.disabled = true; });
+    btns[q.answer].classList.add('right');
+    if (i >= 0 && !res.ok) btns[i].classList.add('wrong');
+    const k = q.kanji;
+    const info = `<span lang="ja" style="font-size:1.3rem">${esc(k.k)}</span> ${esc(G.reading(k))} — ${esc(G.meaning(k))}`;
+    if (res.ok) {
+      const tag = res.stagger ? 'STAGGER! ' : res.guarded ? 'Guarded. ' : res.crit ? 'CRITICAL! ' : '';
+      $('feedback').innerHTML = `<span class="ok">${tag}-${res.dmg}</span> · ${info}`;
+      floatText(`-${res.dmg}`, res.crit ? 'crit' : 'dmg');
+      retrigger($('enIcon'), 'shake');
+    } else {
+      $('feedback').innerHTML = `<span class="ng">${res.timeout ? 'Too slow!' : 'Miss!'} ${res.charged ? 'Heavy hit: ' : 'You took '}${res.taken}</span><br>${info}`;
+      retrigger(document.body, 'flash');
+    }
+    store.set('kc-mastery', mastery);
+    renderBattle(false);
+    const wait = FAST_MODE ? 30 : res.ok ? 650 : 1700;
+    setTimeout(() => after(res), wait);
+  }
+
+  function after(res) {
+    if (g.phase === 'won' || g.phase === 'lost') return endRun();
+    if (g.phase === 'reward') return showReward();
+    renderBattle(true);
+    if (res.floorCleared) $('feedback').innerHTML = `<b>Floor ${g.floor - 1} cleared!</b> You recover some HP.`;
+  }
+
+  function showReward() {
+    $('rwSub').textContent = `HP ${g.hp}/${g.maxHp} · Next: ${g.battle === G.BATTLES_PER_FLOOR ? 'the floor boss' : `fight ${g.battle + 1}`}`;
+    $('choices').innerHTML = g.rewardChoices.map((key) => {
+      const r = G.RELICS[key];
+      return `<button class="choice" data-key="${key}"><span class="ic">${r.icon}</span><b>${esc(r.name)}</b><small>${esc(r.desc)}</small></button>`;
+    }).join('');
+    show('scrReward');
+  }
+
+  function endRun() {
+    const s = G.summary(g);
+    meta.best = Math.max(meta.best, s.score);
+    meta.bestBy[course] = Math.max(meta.bestBy[course] || 0, s.score);
+    let counted = false;
+    if (daily && !dailyRec()) {
+      meta.dailyBy = meta.dailyBy || {};
+      meta.dailyBy[course] = { date: TODAY, score: s.score, floor: s.floor, result: s.result };
+      counted = true;
+    }
+    store.set('kc-meta', meta);
+    store.set('kc-mastery', mastery);
+    $('endShare').hidden = !daily;
+    if (daily) {
+      const d = dailyRec();
+      $('shareText').value = `Kanji Crawl Daily ${TODAY} (${course})\n${d.result === 'won' ? '🏯 Cleared all 3 floors' : `⚔️ Reached floor ${d.floor}`} · ${d.score} pts\n${SHARE_URL}`;
+      $('shareNote').textContent = counted ? 'Your first daily try is recorded.' : 'Practice run: your first try today is what counts.';
+      $('btnShare').textContent = 'Copy result';
+    }
+    $('endTitle').textContent = s.result === 'won' ? 'You cleared the crawl!' : `Defeated on floor ${s.floor}`;
+    $('endSub').textContent = s.result === 'won' ? 'All three bosses fell. Try again to master more kanji.' : 'Your kanji progress is saved. The bosses will test your weak spots next time.';
+    $('endScore').textContent = s.score;
+    $('endAcc').textContent = s.accuracy + '%';
+    $('endCombo').textContent = s.bestCombo;
+    $('endMastered').textContent = `${G.masteredCount(POOL, mastery)}/${POOL.length}`;
+    $('endMissedWrap').hidden = !s.missed.length;
+    $('endMissed').innerHTML = s.missed.map((k) => `<div><span class="k" lang="ja">${esc(k.k)}</span><span>${esc(G.reading(k))}</span><span class="muted">${esc(G.meaning(k))}</span></div>`).join('');
+    show('scrEnd');
+  }
+
+  function renderGrim() {
+    $('grim').innerHTML = POOL.map((e) => `<button class="gk" data-k="${esc(e.k)}" data-box="${G.masteryOf(mastery, e.k).box}" lang="ja" aria-label="${esc(e.k)}">${esc(e.k)}</button>`).join('');
+    $('ginfo').textContent = 'Tap a kanji to see it.';
+    show('scrGrim');
+  }
+
+  $('course').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-c]'); if (!b) return;
+    course = b.dataset.c; POOL = SETS[course];
+    meta.course = course; store.set('kc-meta', meta);
+    renderTitle();
+  });
+  $('btnStart').addEventListener('click', () => startRun(false));
+  $('btnDaily').addEventListener('click', () => startRun(true));
+  $('btnAgain').addEventListener('click', () => startRun(false));
+  $('btnShare').addEventListener('click', async () => {
+    try {
+      // 埋め込み先によっては許可待ちのまま返らないので、1.5秒で手動コピーに切り替える
+      await Promise.race([navigator.clipboard.writeText($('shareText').value), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 1500))]);
+      $('btnShare').textContent = 'Copied!';
+    }
+    catch (e) { $('shareText').hidden = false; $('shareText').select(); $('btnShare').textContent = 'Select and copy the text'; }
+  });
+  $('btnHome').addEventListener('click', renderTitle);
+  $('btnHow').addEventListener('click', () => { $('how').hidden = !$('how').hidden; });
+  $('btnGrim').addEventListener('click', renderGrim);
+  $('btnGrimBack').addEventListener('click', renderTitle);
+  $('grim').addEventListener('click', (e) => {
+    const b = e.target.closest('.gk'); if (!b) return;
+    const k = POOL.find((x) => x.k === b.dataset.k), m = G.masteryOf(mastery, k.k);
+    $('ginfo').innerHTML = `<span lang="ja" style="font-size:2.2rem;float:left;margin-right:12px;line-height:1">${esc(k.k)}</span><b>${esc(G.meaning(k))}</b><br>On: ${esc(k.on.join('、') || '—')} · Kun: ${esc(k.kun.join('、') || '—')}<br><span class="muted">${k.s} strokes · seen ${m.seen} · correct ${m.ok} · box ${m.box}/5</span>`;
+  });
+  $('opts').addEventListener('click', (e) => { const b = e.target.closest('.opt'); if (b) onAnswer(+b.dataset.i); });
+  $('choices').addEventListener('click', (e) => {
+    const b = e.target.closest('.choice'); if (!b) return;
+    G.chooseReward(g, b.dataset.key);
+    show('scrBattle');
+    renderBattle(true);
+  });
+  $('btnHint').addEventListener('click', hint);
+  function hint() {
+    if (locked || !G.useHint(g)) return;
+    for (const i of g.q.removed) $('opts').children[i].classList.add('gone');
+    $('hints').textContent = g.hints;
+    $('btnHint').disabled = g.hints <= 0;
+  }
+  document.addEventListener('keydown', (e) => {
+    if ($('scrBattle').hidden) {
+      if (!$('scrReward').hidden && /^[1-3]$/.test(e.key)) { const b = $('choices').children[+e.key - 1]; if (b) b.click(); }
+      return;
+    }
+    if (/^[1-4]$/.test(e.key)) { const i = +e.key - 1; if (!g.q.removed.includes(i)) onAnswer(i); }
+    if (e.key === 'h' || e.key === 'H') hint();
+  });
+
+  if (qs.has('test')) window.__kc = { get game() { return g; } }; // 検証用
+  renderTitle();
+})();
+</script>
+</body>
+</html>

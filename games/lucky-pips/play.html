@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lucky Pips</title>
+<meta name="description" content="A dice roguelite. Roll five dice, build combos, collect charms that multiply your score, and beat three bosses.">
+<meta name="theme-color" content="#0f3b2e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='8' y='8' width='84' height='84' rx='18' fill='%23fff7e6'/%3E%3Ccircle cx='30' cy='30' r='9' fill='%23c0392b'/%3E%3Ccircle cx='50' cy='50' r='9' fill='%23c0392b'/%3E%3Ccircle cx='70' cy='70' r='9' fill='%23c0392b'/%3E%3C/svg%3E">
+<style>
+:root {
+  --felt: #145a43; --felt-dark: #0f3b2e; --panel: rgba(0, 0, 0, .28); --line: rgba(255, 255, 255, .16);
+  --ink: #fdf7ea; --muted: #b9d3c7; --gold: #f4c542; --chips: #4fb3ff; --mult: #ff6b5b; --good: #7be3a4; --bad: #ff8a7a;
+  --die: #fff7e6; --die-ink: #1d1a16; --pip: #c0392b; --held: #f4c542; --focus: #ffe08a;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --felt: #1d7356; --felt-dark: #145a43; }
+}
+:root[data-theme="light"] { --felt: #1d7356; --felt-dark: #145a43; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); background: radial-gradient(ellipse at 50% 30%, var(--felt), var(--felt-dark) 75%); background-color: var(--felt-dark); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; overflow-x: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: default; }
+[hidden] { display: none !important; }
+.btn { min-height: 48px; padding: 10px 20px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); font-weight: 700; }
+.btn.go { background: var(--gold); color: #2a1f00; border-color: var(--gold); }
+.btn.red { background: var(--mult); color: #fff; border-color: var(--mult); }
+.muted { color: var(--muted); }
+.kbd { font-size: .7rem; opacity: .7; margin-left: 6px; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
+main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 24px; min-height: 100vh; }
+
+/* タイトル */
+.title { text-align: center; padding-top: 7vh; }
+.logo { font-size: clamp(2.6rem, 9vw, 4.2rem); font-weight: 900; margin: 10px 0 4px; letter-spacing: .02em; }
+.logo span { color: var(--gold); }
+.title .dice { justify-content: center; margin: 0 auto; pointer-events: none; }
+.title p { max-width: 520px; margin: 8px auto 20px; color: var(--muted); }
+.how { max-width: 560px; margin: 16px auto 0; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 18px; font-size: .92rem; }
+.recs { margin-top: 14px; font-size: .9rem; color: var(--muted); }
+
+/* 対局 */
+.game { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+.side { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 10px; }
+.side .round { font-weight: 800; font-size: 1.1rem; }
+.boss { border: 1px solid var(--mult); border-radius: 10px; padding: 6px 10px; font-size: .85rem; }
+.boss b { color: var(--mult); }
+.target { font-size: .85rem; color: var(--muted); }
+.target b { display: block; font-size: 1.6rem; color: var(--ink); }
+.progress { height: 10px; background: rgba(0,0,0,.35); border-radius: 99px; overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--gold); transition: width .4s; }
+.counters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; font-size: .75rem; color: var(--muted); }
+.counters b { display: block; font-size: 1.3rem; color: var(--ink); }
+.counters .coins b { color: var(--gold); }
+.table { display: grid; gap: 14px; }
+.charms { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.charm { min-height: 64px; border-radius: 12px; border: 1px dashed var(--line); background: rgba(0,0,0,.15); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: .72rem; padding: 4px; text-align: center; }
+.charm.on { border-style: solid; background: var(--panel); }
+.charm .ic { font-size: 1.6rem; line-height: 1.1; }
+.charm.pop { animation: pop .35s; }
+@keyframes pop { 50% { transform: scale(1.15); border-color: var(--gold); } }
+.charm-info { min-height: 1.4em; font-size: .85rem; color: var(--muted); text-align: center; }
+.dice { display: flex; gap: clamp(8px, 2vw, 16px); justify-content: center; flex-wrap: nowrap; }
+.die { --s: clamp(52px, min(13vw, 16vh), 96px); width: var(--s); height: var(--s); flex: none; border-radius: 18%; background: var(--die); border: 3px solid transparent; box-shadow: 0 6px 0 rgba(0,0,0,.35); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: calc(var(--s) * .12); position: relative; transition: transform .15s; }
+.die i { width: 72%; aspect-ratio: 1; border-radius: 50%; background: var(--pip); place-self: center; }
+.die.held { border-color: var(--held); transform: translateY(-10px); box-shadow: 0 10px 0 rgba(0,0,0,.35), 0 0 0 4px rgba(244,197,66,.35); }
+.die.scoring { box-shadow: 0 6px 0 rgba(0,0,0,.35), 0 0 0 4px var(--chips); }
+.die .tag { position: absolute; bottom: -26px; left: 0; right: 0; text-align: center; font-size: .7rem; color: var(--gold); font-weight: 800; }
+.die.roll { animation: roll .35s; }
+@keyframes roll { 30% { transform: rotate(-14deg) scale(.92); } 70% { transform: rotate(10deg) scale(1.05); } }
+.combo { text-align: center; margin-top: 18px; }
+.combo .name { font-size: 1.3rem; font-weight: 800; }
+.formula { font-size: 1.15rem; font-weight: 800; display: inline-flex; gap: 8px; align-items: center; }
+.formula .c { background: var(--chips); color: #002033; border-radius: 8px; padding: 2px 10px; }
+.formula .m { background: var(--mult); color: #fff; border-radius: 8px; padding: 2px 10px; }
+.notes { font-size: .8rem; color: var(--muted); min-height: 1.2em; }
+.actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.actions .btn { min-width: 150px; }
+.toast { text-align: center; font-weight: 800; min-height: 1.5em; color: var(--gold); }
+.toast.big { animation: pop .5s; font-size: 1.4rem; }
+.hint { text-align: center; font-size: .8rem; color: var(--muted); }
+.hint.coach { font-size: 1rem; color: var(--ink); background: var(--panel); border: 1px solid var(--gold); border-radius: 12px; padding: 8px 12px; max-width: 460px; margin: 0 auto; }
+.sound { position: fixed; left: 12px; bottom: 10px; z-index: 5; min-width: 44px; min-height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); font-size: 1.1rem; }
+
+/* 店 */
+.shop { max-width: 900px; margin: 0 auto; display: grid; gap: 14px; }
+.shop h2 { margin: 4px 0 0; }
+.payout { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; font-size: .9rem; }
+.offers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.offer { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 6px; text-align: center; }
+.offer .ic { font-size: 2.2rem; }
+.offer .desc { font-size: .85rem; color: var(--muted); min-height: 3em; }
+.rar { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.rar.r2 { color: var(--chips); } .rar.r3 { color: var(--mult); }
+.owned { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.owned .charm button { margin-top: 4px; min-height: 32px; font-size: .72rem; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0,0,0,.2); }
+.next-boss { font-size: .9rem; }
+
+/* 結果 */
+.end { max-width: 560px; margin: 0 auto; text-align: center; padding-top: 6vh; }
+.end h2 { font-size: 2rem; margin: 0 0 6px; }
+.kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0; }
+.kv div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; font-size: .8rem; color: var(--muted); }
+.kv b { display: block; font-size: 1.4rem; color: var(--ink); }
+
+@media (max-width: 760px) {
+  .game { grid-template-columns: 1fr; }
+  .side { grid-template-columns: 1fr 1fr; align-items: center; }
+  .side .round, .side .boss, .side .progress { grid-column: 1 / -1; }
+  .offers { grid-template-columns: 1fr; }
+  .charm { min-height: 56px; }
+  .charm .nm { display: none; }
+  .sound { top: 10px; right: 12px; left: auto; bottom: auto; }
+}
+/* 配信サイトの横長の小さい枠（例 821×462）でもスクロールなしで収める */
+@media (max-height: 640px) and (min-width: 761px) {
+  main { padding-top: 8px; padding-bottom: 8px; min-height: 0; }
+  .table { gap: 8px; }
+  .charm { min-height: 50px; }
+  .charm .ic { font-size: 1.3rem; }
+  .charm-info { font-size: .78rem; min-height: 1.1em; }
+  .combo { margin-top: 10px; }
+  .combo .name { font-size: 1.1rem; }
+  .btn { min-height: 44px; padding: 8px 16px; }
+  .toast { min-height: 1.2em; }
+  .hint.coach { font-size: .85rem; padding: 4px 10px; }
+  .side { padding: 10px; gap: 6px; }
+  .target b { font-size: 1.3rem; }
+  .shop { gap: 8px; }
+  .shop h2 { font-size: 1.25rem; }
+  .payout { padding: 6px 12px; }
+  .offer { padding: 8px; gap: 2px; }
+  .offer .ic { font-size: 1.5rem; }
+  .offer .desc { min-height: 0; }
+  .owned .charm { min-height: 44px; }
+  .offer .rar { display: none; }
+  .next-boss { font-size: .82rem; }
+  .title { padding-top: 2vh; }
+  .title .die { --s: 56px; }
+  .end { padding-top: 2vh; }
+  .kv { margin: 10px 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<button class="sound" id="btnSound" aria-label="Sound on" title="Sound">🔊</button>
+<main>
+  <!-- タイトル -->
+  <section id="scrTitle" class="title">
+    <div class="dice" id="titleDice" aria-hidden="true"></div>
+    <h1 class="logo">Lucky <span>Pips</span></h1>
+    <p>Roll five dice. Build combos. Collect charms that bend the rules. Beat nine rounds and three bosses.</p>
+    <button class="btn go" id="btnPlay" style="min-width:220px">Play</button>
+    <div style="margin-top:10px"><button class="btn" id="btnHow">How to play</button></div>
+    <div class="how" id="how" hidden>
+      <ol>
+        <li>Each round has a target score. You get a few <b>hands</b> to reach it.</li>
+        <li>Tap dice to <b>hold</b> them, then <b>reroll</b> the rest (a few rerolls per hand).</li>
+        <li><b>Score</b> the hand: (chips + pips of the scoring dice) × mult. Bigger combos give more.</li>
+        <li>Between rounds, spend coins on <b>charms</b>. Unused hands and saved coins pay extra.</li>
+        <li>Every third round is a <b>boss</b> with a nasty rule.</li>
+      </ol>
+      <p class="muted">Keys: 1–5 hold · R reroll · Enter score</p>
+    </div>
+    <div class="recs" id="recs"></div>
+  </section>
+
+  <!-- 対局 -->
+  <section id="scrGame" class="game" hidden>
+    <aside class="side">
+      <div class="round" id="gRound">Round 1 / 9</div>
+      <div class="boss" id="gBoss" hidden></div>
+      <div class="target">Score <b><span id="gScore">0</span> / <span id="gTarget">0</span></b></div>
+      <div class="progress" aria-hidden="true"><i id="gBar"></i></div>
+      <div class="counters">
+        <div><b id="gHands">3</b>hands</div>
+        <div><b id="gRerolls">2</b>rerolls</div>
+        <div class="coins"><b id="gCoins">4</b>coins</div>
+      </div>
+    </aside>
+    <div class="table">
+      <div class="charms" id="gCharms" aria-label="Your charms"></div>
+      <div class="charm-info" id="gCharmInfo">Charms you buy appear here.</div>
+      <div class="dice" id="gDice" role="group" aria-label="Dice"></div>
+      <div class="combo" aria-live="polite">
+        <div class="name" id="gCombo">Pair</div>
+        <div class="formula"><span class="c" id="gChips">0</span>×<span class="m" id="gMult">1</span>=<span id="gTotal">0</span></div>
+        <div class="notes" id="gNotes"></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="btnReroll">Reroll <span id="rrLeft"></span><span class="kbd">R</span></button>
+        <button class="btn go" id="btnScore">Score hand<span class="kbd">Enter</span></button>
+      </div>
+      <div class="toast" id="gToast" aria-live="polite"></div>
+      <div class="hint" id="gHint" aria-live="polite">Tap a die to hold it.</div>
+    </div>
+  </section>
+
+  <!-- 店 -->
+  <section id="scrShop" class="shop" hidden>
+    <h2 id="sTitle">Round cleared!</h2>
+    <div class="payout" id="sPayout"></div>
+    <div class="next-boss" id="sNext"></div>
+    <div class="offers" id="sOffers"></div>
+    <div class="actions">
+      <button class="btn" id="btnShopReroll">New offers (<span id="sRerollCost">2</span> coins)</button>
+      <button class="btn go" id="btnNext">Next round</button>
+    </div>
+    <div><b>Your charms</b> <span class="muted">(<span id="sCount">0</span>/5 · coins <b id="sCoins" style="color:var(--gold)">0</b>)</span></div>
+    <div class="owned" id="sOwned"></div>
+  </section>
+
+  <!-- 結果 -->
+  <section id="scrEnd" class="end" hidden>
+    <h2 id="eTitle">Run over</h2>
+    <p class="muted" id="eSub"></p>
+    <div class="kv">
+      <div><b id="eRound">1</b>round reached</div>
+      <div><b id="eBest">0</b>best hand</div>
+      <div><b id="eHands">0</b>hands played</div>
+      <div><b id="eCharms">—</b>charms</div>
+    </div>
+    <div class="actions">
+      <button class="btn go" id="btnAgain">Play again</button>
+      <button class="btn" id="btnHome">Title</button>
+    </div>
+  </section>
+</main>
+<script>
+// Lucky Pips: サイコロのローグライトのルール（画面に依存しない純粋なロジック）。
+// ブラウザでは globalThis.LuckyPips、Node では module.exports で使う。
+(function (root) {
+  'use strict';
+
+  function rng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function shuffle(r, arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+  const die = (r) => 1 + Math.floor(r() * 6);
+
+  // ---- 役 ----
+  // chips: 基本点、mult: 倍率。得点 = (基本点 + 役に使った目の合計 + 効果) × 倍率
+  const COMBOS = {
+    high: { name: 'High Die', chips: 5, mult: 1 },
+    pair: { name: 'Pair', chips: 10, mult: 2 },
+    twoPair: { name: 'Two Pair', chips: 20, mult: 2 },
+    three: { name: 'Three of a Kind', chips: 30, mult: 3 },
+    smallStraight: { name: 'Small Straight', chips: 30, mult: 3 },
+    fullHouse: { name: 'Full House', chips: 40, mult: 4 },
+    largeStraight: { name: 'Large Straight', chips: 50, mult: 4 },
+    four: { name: 'Four of a Kind', chips: 60, mult: 6 },
+    five: { name: 'Five of a Kind', chips: 100, mult: 10 },
+  };
+  const COMBO_ORDER = ['five', 'four', 'largeStraight', 'fullHouse', 'smallStraight', 'three', 'twoPair', 'pair', 'high'];
+
+  // 目の配列から一番強い役と、役に使ったサイコロの位置を返す
+  function evaluate(dice) {
+    const byFace = {};
+    dice.forEach((v, i) => { (byFace[v] = byFace[v] || []).push(i); });
+    const groups = Object.entries(byFace).map(([v, idx]) => ({ v: +v, idx })).sort((a, b) => b.idx.length - a.idx.length || b.v - a.v);
+    const has = (v) => !!byFace[v];
+    const run = (from, len) => { for (let v = from; v < from + len; v++) if (!has(v)) return false; return true; };
+    const pickRun = (from, len) => { const out = []; for (let v = from; v < from + len; v++) out.push(byFace[v][0]); return out; };
+    const [a, b] = groups;
+    if (a.idx.length === 5) return { combo: 'five', idx: a.idx };
+    if (a.idx.length === 4) return { combo: 'four', idx: a.idx };
+    if (run(1, 5)) return { combo: 'largeStraight', idx: pickRun(1, 5) };
+    if (run(2, 5)) return { combo: 'largeStraight', idx: pickRun(2, 5) };
+    if (a.idx.length === 3 && b && b.idx.length === 2) return { combo: 'fullHouse', idx: [...a.idx, ...b.idx] };
+    for (const f of [3, 2, 1]) if (run(f, 4)) return { combo: 'smallStraight', idx: pickRun(f, 4) };
+    if (a.idx.length === 3) return { combo: 'three', idx: a.idx };
+    if (a.idx.length === 2 && b && b.idx.length === 2) return { combo: 'twoPair', idx: [...a.idx, ...b.idx] };
+    if (a.idx.length === 2) return { combo: 'pair', idx: a.idx };
+    return { combo: 'high', idx: [groups.sort((x, y) => y.v - x.v)[0].idx[0]] };
+  }
+
+  // ---- お守り ----
+  // score(ctx): 得点計算に加える。ctx = { g, combo, faces(役に使った目), all(5個の目), chips, mult, notes[] }
+  // passive(g): 持っている間ずっと効く（手番数・振り直し回数など）
+  const PAIRISH = ['pair', 'twoPair', 'fullHouse'];
+  const KINDS = ['three', 'four', 'five'];
+  const STRAIGHTS = ['smallStraight', 'largeStraight'];
+  const CHARMS = {
+    twinCharm: { name: 'Twin Charm', icon: '👯', price: 4, rarity: 1, desc: '+4 mult on Pair, Two Pair or Full House', score: (c) => { if (PAIRISH.includes(c.combo)) c.mult += 4; } },
+    triad: { name: 'Triad Totem', icon: '🔺', price: 6, rarity: 2, desc: '×2 mult on Three, Four or Five of a Kind', score: (c) => { if (KINDS.includes(c.combo)) c.mult *= 2; } },
+    ladder: { name: 'Rope Ladder', icon: '🪜', price: 5, rarity: 1, desc: '+60 chips on any Straight', score: (c) => { if (STRAIGHTS.includes(c.combo)) c.chips += 60; } },
+    highRoller: { name: 'High Roller', icon: '🎩', price: 4, rarity: 1, desc: '+12 chips for each scored 6', score: (c) => { c.chips += 12 * c.faces.filter((v) => v === 6).length; } },
+    underdog: { name: 'Underdog', icon: '🐕', price: 4, rarity: 1, desc: '+15 chips for each scored 1 or 2', score: (c) => { c.chips += 15 * c.faces.filter((v) => v <= 2).length; } },
+    evens: { name: 'Even Keel', icon: '⚖️', price: 5, rarity: 1, desc: '+2 mult for each scored even die', score: (c) => { c.mult += 2 * c.faces.filter((v) => v % 2 === 0).length; } },
+    odds: { name: 'Odd Sock', icon: '🧦', price: 5, rarity: 1, desc: '+2 mult for each scored odd die', score: (c) => { c.mult += 2 * c.faces.filter((v) => v % 2 === 1).length; } },
+    extraHand: { name: 'Spare Cup', icon: '🥤', price: 6, rarity: 2, desc: '+1 hand every round', passive: (g) => { g.hands += 1; } },
+    extraReroll: { name: 'Shaker', icon: '🧂', price: 6, rarity: 2, desc: '+1 reroll every hand', passive: (g) => { g.rerolls += 1; } },
+    piggy: { name: 'Piggy Bank', icon: '🐷', price: 4, rarity: 1, desc: 'Earn 2 extra coins after each round', roundEnd: (g) => 2 },
+    lastStand: { name: 'Last Stand', icon: '🏳️', price: 6, rarity: 2, desc: '×3 mult on the last hand of a round', score: (c) => { if (c.g.handsLeft === 1) c.mult *= 3; } },
+    firstStrike: { name: 'First Strike', icon: '⚡', price: 5, rarity: 1, desc: '×2 mult on the first hand of a round', score: (c) => { if (c.g.handsLeft === c.g.hands) c.mult *= 2; } },
+    snowball: { name: 'Snowball', icon: '☃️', price: 5, rarity: 2, desc: 'Gains +1 mult every Full House you score (now +{n})', score: (c, st) => { if (c.combo === 'fullHouse') st.n = (st.n || 0) + 1; c.mult += st.n || 0; } },
+    collector: { name: 'Collector', icon: '🧳', price: 5, rarity: 1, desc: '+2 mult for each charm you own', score: (c) => { c.mult += 2 * c.g.charms.length; } },
+    purist: { name: 'Purist', icon: '🧘', price: 5, rarity: 2, desc: '×2.5 mult if you used no rerolls this hand', score: (c) => { if (c.g.rerollsLeft === c.g.rerolls) c.mult *= 2.5; } },
+    fullSum: { name: 'Abacus', icon: '🧮', price: 4, rarity: 1, desc: 'All 5 dice add their pips, not just scored ones', score: (c) => { c.chips += c.all.reduce((s, v) => s + v, 0) - c.faces.reduce((s, v) => s + v, 0); } },
+    growth: { name: 'Sprout', icon: '🌱', price: 4, rarity: 1, desc: 'Gains +4 chips every hand you play (now +{n})', score: (c, st) => { st.n = (st.n || 0) + 4; c.chips += st.n; } },
+    glass: { name: 'Glass Cannon', icon: '💎', price: 7, rarity: 3, desc: '×3 mult, but one fewer hand each round', score: (c) => { c.mult *= 3; }, passive: (g) => { g.hands -= 1; } },
+    midas: { name: 'Midas Pip', icon: '🪙', price: 5, rarity: 2, desc: 'Each scored 5 earns 1 coin', score: (c) => { const n = c.faces.filter((v) => v === 5).length; c.g.coins += n; if (n) c.notes.push(`+${n} coin`); } },
+    lucky7: { name: 'Lucky Seven', icon: '🍀', price: 5, rarity: 2, desc: '+7 mult if the scored dice add up to a multiple of 7', score: (c) => { if (c.faces.reduce((s, v) => s + v, 0) % 7 === 0) c.mult += 7; } },
+    pairUp: { name: 'Pair Up', icon: '🧤', price: 3, rarity: 1, desc: '+25 chips on a plain Pair or Two Pair', score: (c) => { if (c.combo === 'pair' || c.combo === 'twoPair') c.chips += 25; } },
+    bigStack: { name: 'Big Stack', icon: '🗼', price: 6, rarity: 3, desc: '+1 mult for every 5 coins you hold', score: (c) => { c.mult += Math.floor(c.g.coins / 5); } },
+  };
+  const MAX_CHARMS = 5;
+
+  // ---- ラウンドと親玉 ----
+  const ROUNDS = 9; // 3つの段 × (通常2 + 親玉1)
+  const TARGETS = [80, 130, 200, 320, 480, 720, 1000, 1500, 2200];
+  const BOSSES = [
+    { key: 'noLow', name: 'The Miser', desc: '1s and 2s score no chips' },
+    { key: 'fewer', name: 'The Thief', desc: 'One fewer hand this round' },
+    { key: 'noPair', name: 'The Loner', desc: 'Pair and Two Pair score ×1 mult' },
+    { key: 'stiff', name: 'The Stiff', desc: 'One fewer reroll each hand' },
+    { key: 'greed', name: 'The Tax Man', desc: 'Lose 1 coin for each hand played' },
+  ];
+  const isBossRound = (round) => round % 3 === 2; // 0始まり: 2, 5, 8
+
+  function newRun(opts) {
+    const seed = (opts && opts.seed) >>> 0;
+    const g = {
+      seed, r: rng(seed), rs: rng(seed ^ 0x51ed27), // r: サイコロ、rs: 店と親玉
+      round: 0, phase: 'roll', coins: 4, charms: [], charmState: {},
+      hands: 3, rerolls: 2, handsLeft: 0, rerollsLeft: 0, dice: [1, 1, 1, 1, 1], held: [false, false, false, false, false],
+      score: 0, target: 0, boss: null, bosses: shuffle(rng(seed ^ 0xb055), BOSSES).slice(0, 3),
+      shop: [], shopRerollCost: 2, last: null,
+      stats: { hands: 0, best: 0, bestCombo: null, combos: {} },
+    };
+    startRound(g);
+    return g;
+  }
+  function recalc(g) {
+    g.hands = 3; g.rerolls = 2;
+    for (const k of g.charms) if (CHARMS[k].passive) CHARMS[k].passive(g);
+    if (g.boss && g.boss.key === 'fewer') g.hands -= 1;
+    if (g.boss && g.boss.key === 'stiff') g.rerolls -= 1;
+    g.hands = Math.max(1, g.hands); g.rerolls = Math.max(0, g.rerolls);
+  }
+  function startRound(g) {
+    g.boss = isBossRound(g.round) ? g.bosses[Math.floor(g.round / 3)] : null;
+    g.target = TARGETS[g.round];
+    g.score = 0;
+    g.phase = 'roll';
+    recalc(g);
+    g.handsLeft = g.hands;
+    newHand(g);
+  }
+  function newHand(g) {
+    g.held = [false, false, false, false, false];
+    g.dice = g.dice.map(() => die(g.r));
+    g.rerollsLeft = g.rerolls;
+  }
+  function toggleHold(g, i) { if (g.phase === 'roll') g.held[i] = !g.held[i]; }
+  function reroll(g) {
+    if (g.phase !== 'roll' || g.rerollsLeft <= 0) return false;
+    g.dice = g.dice.map((v, i) => (g.held[i] ? v : die(g.r)));
+    g.rerollsLeft--;
+    return true;
+  }
+
+  // 今の目で役を確定したときの得点を計算する（commit=false なら予告だけ、状態を変えない）
+  function preview(g, commit) {
+    const ev = evaluate(g.dice);
+    const base = COMBOS[ev.combo];
+    const faces = ev.idx.map((i) => g.dice[i]);
+    const c = { g, combo: ev.combo, idx: ev.idx, faces, all: g.dice.slice(), chips: base.chips, mult: base.mult, notes: [] };
+    let pipChips = faces.reduce((s, v) => s + (g.boss && g.boss.key === 'noLow' && v <= 2 ? 0 : v), 0);
+    c.chips += pipChips;
+    if (g.boss && g.boss.key === 'noPair' && (ev.combo === 'pair' || ev.combo === 'twoPair')) c.mult = 1;
+    const coins0 = g.coins;
+    for (const k of g.charms) {
+      const ch = CHARMS[k];
+      if (!ch.score) continue;
+      const st = commit ? (g.charmState[k] = g.charmState[k] || {}) : Object.assign({}, g.charmState[k] || {});
+      const before = [c.chips, c.mult];
+      ch.score(c, st);
+      if (before[0] !== c.chips || before[1] !== c.mult) c.notes.push(ch.name);
+    }
+    if (!commit) g.coins = coins0; // 予告ではお金を増やさない
+    c.mult = Math.round(c.mult * 10) / 10;
+    c.total = Math.floor(c.chips * c.mult);
+    return c;
+  }
+
+  // 役を確定して得点。ラウンドの勝敗を進める
+  function play(g) {
+    if (g.phase !== 'roll') return null;
+    const c = preview(g, true);
+    g.score += c.total;
+    g.handsLeft--;
+    g.stats.hands++;
+    g.stats.combos[c.combo] = (g.stats.combos[c.combo] || 0) + 1;
+    if (c.total > g.stats.best) { g.stats.best = c.total; g.stats.bestCombo = c.combo; }
+    if (g.boss && g.boss.key === 'greed') g.coins = Math.max(0, g.coins - 1);
+    const res = { combo: c.combo, name: COMBOS[c.combo].name, idx: c.idx, chips: c.chips, mult: c.mult, total: c.total, notes: c.notes };
+    if (g.score >= g.target) {
+      res.cleared = true;
+      res.earned = payout(g);
+      g.coins += res.earned.total;
+      if (g.round === ROUNDS - 1) { g.phase = 'won'; return res; }
+      g.phase = 'shop';
+      g.shopRerollCost = 2;
+      g.shop = rollShop(g);
+    } else if (g.handsLeft <= 0) {
+      g.phase = 'lost';
+    } else {
+      newHand(g);
+    }
+    g.last = res;
+    return res;
+  }
+  // ラウンドの報酬: 基本3（親玉5）＋残り手番1つにつき1＋利子（5枚ごとに1、最大5）＋お守り
+  function payout(g) {
+    const base = g.boss ? 5 : 3;
+    const hands = g.handsLeft;
+    const interest = Math.min(5, Math.floor(g.coins / 5));
+    let extra = 0;
+    for (const k of g.charms) if (CHARMS[k].roundEnd) extra += CHARMS[k].roundEnd(g);
+    return { base, hands, interest, extra, total: base + hands + interest + extra };
+  }
+
+  // ---- 店 ----
+  function rollShop(g) {
+    const pool = Object.keys(CHARMS).filter((k) => !g.charms.includes(k));
+    // 珍しいものほど出にくい
+    const weighted = pool.flatMap((k) => Array(4 - CHARMS[k].rarity).fill(k));
+    const out = [];
+    for (const k of shuffle(g.rs, weighted)) { if (!out.includes(k)) out.push(k); if (out.length === 3) break; }
+    return out;
+  }
+  function buy(g, key) {
+    if (g.phase !== 'shop' || !g.shop.includes(key) || g.charms.length >= MAX_CHARMS) return false;
+    const price = CHARMS[key].price;
+    if (g.coins < price) return false;
+    g.coins -= price;
+    g.charms.push(key);
+    g.shop = g.shop.filter((k) => k !== key);
+    return true;
+  }
+  const sellPrice = (key) => Math.max(1, Math.floor(CHARMS[key].price / 2));
+  function sell(g, key) {
+    if (g.phase !== 'shop' || !g.charms.includes(key)) return false;
+    g.charms = g.charms.filter((k) => k !== key);
+    delete g.charmState[key];
+    g.coins += sellPrice(key);
+    return true;
+  }
+  function rerollShop(g) {
+    if (g.phase !== 'shop' || g.coins < g.shopRerollCost) return false;
+    g.coins -= g.shopRerollCost;
+    g.shopRerollCost++;
+    g.shop = rollShop(g);
+    return true;
+  }
+  function nextRound(g) {
+    if (g.phase !== 'shop') return false;
+    g.round++;
+    startRound(g);
+    return true;
+  }
+  function charmDesc(g, key) { return CHARMS[key].desc.replace('{n}', (g.charmState[key] && g.charmState[key].n) || 0); }
+
+  function summary(g) {
+    return { result: g.phase, round: g.round + 1, rounds: ROUNDS, hands: g.stats.hands, best: g.stats.best, bestCombo: g.stats.bestCombo && COMBOS[g.stats.bestCombo].name, charms: g.charms.slice(), points: g.round * 1000 + Math.min(g.score, g.target) };
+  }
+
+  const api = { rng, COMBOS, COMBO_ORDER, CHARMS, MAX_CHARMS, ROUNDS, TARGETS, BOSSES, evaluate, newRun, toggleHold, reroll, preview, play, buy, sell, sellPrice, rerollShop, nextRound, charmDesc, summary, isBossRound };
+  root.LuckyPips = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>
+(function () {
+  'use strict';
+  const G = window.LuckyPips;
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const FAST = qs.has('fast'); // 検証用: 演出の待ち時間を短くする
+  const wait = (ms) => (FAST ? 30 : ms);
+
+  const store = {
+    get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 保存できなくても遊べる */ } },
+  };
+  const meta = store.get('lp-meta', { runs: 0, wins: 0, bestRound: 0, bestHand: 0 });
+  if (meta.sound === undefined) meta.sound = true;
+
+  // ---- 効果音（Web Audio で合成。素材ファイルなし） ----
+  let ac = null;
+  function tone(freq, dur, type, vol, when) {
+    if (!meta.sound || FAST) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (when || 0);
+      const o = ac.createOscillator(), gn = ac.createGain();
+      o.type = type || 'triangle'; o.frequency.setValueAtTime(freq, t);
+      gn.gain.setValueAtTime(vol || 0.12, t); gn.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + dur);
+    } catch (e) { /* 音が出せなくても遊べる */ }
+  }
+  const sfx = {
+    hold: () => tone(660, 0.06, 'square', 0.05),
+    roll: () => { for (let i = 0; i < 5; i++) tone(180 + Math.random() * 220, 0.05, 'square', 0.04, i * 0.04); },
+    count: (i) => tone(440 * Math.pow(2, Math.min(i, 24) / 12), 0.08, 'triangle', 0.08),
+    clear: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.18, 'triangle', 0.12, i * 0.09)),
+    lose: () => [392, 330, 262].forEach((f, i) => tone(f, 0.25, 'sawtooth', 0.06, i * 0.15)),
+    coin: () => { tone(988, 0.06, 'square', 0.06); tone(1319, 0.12, 'square', 0.06, 0.06); },
+  };
+  function renderSound() { $('btnSound').textContent = meta.sound ? '🔊' : '🔇'; $('btnSound').setAttribute('aria-label', meta.sound ? 'Sound on' : 'Sound off'); }
+
+  // ---- 初回の操作案内（最初のラウンドを越えるまで） ----
+  function coach() {
+    const el = $('gHint');
+    if (meta.tutored || !g || g.phase !== 'roll') { el.className = 'hint'; el.textContent = 'Tap a die to hold it.'; return; }
+    el.className = 'hint coach';
+    if (g.stats.hands === 0 && g.rerollsLeft === g.rerolls && !g.held.some(Boolean)) el.textContent = '① Tap the dice you want to keep. Look for pairs or a run.';
+    else if (g.stats.hands === 0 && g.rerollsLeft === g.rerolls) el.textContent = '② Now press Reroll to roll the other dice.';
+    else if (g.stats.hands === 0) el.textContent = '③ Happy with it? Press Score hand. The bar shows how close you are to the target.';
+    else el.textContent = `Reach ${g.target} before you run out of hands. Charms from the shop multiply your score.`;
+  }
+
+  let g = null, busy = false;
+  const SCREENS = ['scrTitle', 'scrGame', 'scrShop', 'scrEnd'];
+  function show(id) { for (const s of SCREENS) $(s).hidden = s !== id; window.scrollTo(0, 0); }
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // 3×3 の升目のどこに目を置くか（1〜9、左上から）
+  const PIPS = { 1: [5], 2: [1, 9], 3: [1, 5, 9], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9] };
+  const dieInner = (v) => Array.from({ length: 9 }, (_, i) => (PIPS[v].includes(i + 1) ? '<i></i>' : '<span></span>')).join('');
+
+  function renderTitle() {
+    $('titleDice').innerHTML = [6, 6, 6, 6, 6].map((v) => `<div class="die">${dieInner(v)}</div>`).join('');
+    $('recs').textContent = meta.runs ? `Runs ${meta.runs} · Wins ${meta.wins} · Best round ${meta.bestRound}/9 · Best hand ${meta.bestHand}` : '';
+    show('scrTitle');
+  }
+
+  function startRun() {
+    const seed = qs.has('seed') ? +qs.get('seed') : Math.floor(Math.random() * 2 ** 32);
+    g = G.newRun({ seed });
+    meta.runs++;
+    store.set('lp-meta', meta);
+    busy = false;
+    $('gToast').textContent = '';
+    show('scrGame');
+    renderGame();
+  }
+
+  function renderCharms(el, withSell) {
+    el.innerHTML = Array.from({ length: G.MAX_CHARMS }, (_, i) => {
+      const k = g.charms[i];
+      if (!k) return '<div class="charm" aria-hidden="true"></div>';
+      const c = G.CHARMS[k];
+      return `<div class="charm on" data-k="${k}" tabindex="0" title="${esc(c.name + ': ' + G.charmDesc(g, k))}"><span class="ic">${c.icon}</span><span class="nm">${esc(c.name)}</span>${withSell ? `<button data-sell="${k}">Sell ${G.sellPrice(k)}</button>` : ''}</div>`;
+    }).join('');
+  }
+
+  function renderGame(scoring) {
+    $('gRound').textContent = `Round ${g.round + 1} / ${G.ROUNDS}`;
+    $('gBoss').hidden = !g.boss;
+    if (g.boss) $('gBoss').innerHTML = `<b>Boss: ${esc(g.boss.name)}</b><br>${esc(g.boss.desc)}`;
+    $('gScore').textContent = scoring && !FAST ? g.score - scoring.res.total : g.score;
+    $('gTarget').textContent = g.target;
+    $('gBar').style.width = `${Math.min(100, ((scoring && !FAST ? g.score - scoring.res.total : g.score) / g.target) * 100)}%`;
+    $('gHands').textContent = g.handsLeft;
+    $('gRerolls').textContent = g.rerollsLeft;
+    $('gCoins').textContent = g.coins;
+    renderCharms($('gCharms'), false);
+    const dice = scoring ? scoring.dice : g.dice;
+    const p = scoring ? scoring.res : G.preview(g, false);
+    const sc = new Set(p.idx);
+    $('gDice').innerHTML = dice.map((v, i) => `<button class="die${!scoring && g.held[i] ? ' held' : ''}${sc.has(i) ? ' scoring' : ''}" data-i="${i}" aria-pressed="${!scoring && g.held[i]}" aria-label="Die ${i + 1}: ${v}${g.held[i] ? ', held' : ''}">${dieInner(v)}${!scoring && g.held[i] ? '<span class="tag">HELD</span>' : ''}</button>`).join('');
+    $('gCombo').textContent = G.COMBOS[p.combo].name;
+    $('gChips').textContent = p.chips;
+    $('gMult').textContent = p.mult;
+    $('gTotal').textContent = scoring && !FAST ? 0 : p.total;
+    $('gNotes').textContent = p.notes.length ? p.notes.join(' · ') : '';
+    $('rrLeft').textContent = `(${g.rerollsLeft})`;
+    $('btnReroll').disabled = !!scoring || g.rerollsLeft <= 0 || g.held.every(Boolean);
+    $('btnScore').disabled = !!scoring;
+    coach();
+  }
+
+  function onDie(i) {
+    if (busy || g.phase !== 'roll') return;
+    G.toggleHold(g, i);
+    sfx.hold();
+    renderGame();
+  }
+  function onReroll() {
+    if (busy || g.phase !== 'roll' || g.held.every(Boolean)) return;
+    const held = g.held.slice();
+    if (!G.reroll(g)) return;
+    sfx.roll();
+    renderGame();
+    [...$('gDice').children].forEach((d, i) => { if (!held[i]) d.classList.add('roll'); });
+  }
+  function onScore() {
+    if (busy || g.phase !== 'roll') return;
+    busy = true;
+    const dice = g.dice.slice();
+    const charmsBefore = g.charms.slice();
+    const res = G.play(g);
+    meta.bestHand = Math.max(meta.bestHand, res.total);
+    store.set('lp-meta', meta);
+    renderGame({ dice, res });
+    // 効いたお守りを光らせる
+    for (const k of charmsBefore) if (res.notes.includes(G.CHARMS[k].name)) { const el = $('gCharms').querySelector(`[data-k="${k}"]`); if (el) el.classList.add('pop'); }
+    const t = $('gToast');
+    t.textContent = `${res.name}! +${res.total}${res.cleared ? ' · Round cleared!' : ''}`;
+    t.classList.remove('big'); void t.offsetWidth; t.classList.add('big');
+    countUp(res.total, g.score);
+    if (res.cleared) { meta.tutored = true; store.set('lp-meta', meta); setTimeout(sfx.clear, wait(600)); }
+    else if (g.phase === 'lost') setTimeout(sfx.lose, wait(600));
+    setTimeout(() => {
+      busy = false;
+      if (g.phase === 'won' || g.phase === 'lost') return endRun();
+      if (g.phase === 'shop') return showShop(res.earned);
+      t.textContent = '';
+      renderGame();
+    }, wait(res.cleared ? 1400 : 1000));
+  }
+
+  // 得点を数え上げて見せる（合計と上の得点の両方）
+  function countUp(total, scoreAfter) {
+    if (FAST) return;
+    const steps = 12, start = scoreAfter - total;
+    for (let i = 1; i <= steps; i++) {
+      setTimeout(() => {
+        $('gTotal').textContent = Math.round(total * i / steps);
+        $('gScore').textContent = Math.round(start + total * i / steps);
+        $('gBar').style.width = `${Math.min(100, ((start + total * i / steps) / g.target) * 100)}%`;
+        sfx.count(i);
+      }, i * 45);
+    }
+  }
+
+  let lastPayout = null;
+  function showShop(earned) {
+    if (earned) lastPayout = earned;
+    const e = lastPayout;
+    $('sTitle').textContent = `Round ${g.round + 1} cleared!`;
+    $('sPayout').innerHTML = e ? `Earned <b style="color:var(--gold)">${e.total} coins</b>: round ${e.base} + unused hands ${e.hands} + interest ${e.interest}${e.extra ? ` + charms ${e.extra}` : ''}` : '';
+    const nr = g.round + 1;
+    const nb = G.isBossRound(nr) ? g.bosses[Math.floor(nr / 3)] : null;
+    $('sNext').innerHTML = `Next: round ${nr + 1}, target <b>${G.TARGETS[nr]}</b>${nb ? ` · <b style="color:var(--mult)">Boss ${esc(nb.name)}</b>: ${esc(nb.desc)}` : ''}`;
+    const full = g.charms.length >= G.MAX_CHARMS;
+    $('sOffers').innerHTML = g.shop.length ? g.shop.map((k) => {
+      const c = G.CHARMS[k];
+      const can = g.coins >= c.price && !full;
+      return `<div class="offer"><span class="ic">${c.icon}</span><b>${esc(c.name)}</b><span class="rar r${c.rarity}">${['', 'common', 'uncommon', 'rare'][c.rarity]}</span><span class="desc">${esc(G.charmDesc(g, k))}</span><button class="btn${can ? ' go' : ''}" data-buy="${k}" ${can ? '' : 'disabled'}>Buy · ${c.price}</button></div>`;
+    }).join('') : '<p class="muted">Sold out. Get new offers or move on.</p>';
+    $('sRerollCost').textContent = g.shopRerollCost;
+    $('btnShopReroll').disabled = g.coins < g.shopRerollCost;
+    $('sCount').textContent = g.charms.length;
+    $('sCoins').textContent = g.coins;
+    renderCharms($('sOwned'), true);
+    show('scrShop');
+  }
+
+  function endRun() {
+    const s = G.summary(g);
+    if (s.result === 'won') meta.wins++;
+    meta.bestRound = Math.max(meta.bestRound, s.round);
+    store.set('lp-meta', meta);
+    $('eTitle').textContent = s.result === 'won' ? 'You beat all nine rounds!' : `Out of hands in round ${s.round}`;
+    $('eSub').textContent = s.result === 'won' ? 'Three bosses down. Try a different charm build next time.' : `You needed ${g.target} and scored ${g.score}.`;
+    $('eRound').textContent = `${s.round}/${s.rounds}`;
+    $('eBest').textContent = s.best + (s.bestCombo ? ` (${s.bestCombo})` : '');
+    $('eHands').textContent = s.hands;
+    $('eCharms').textContent = s.charms.length ? s.charms.map((k) => G.CHARMS[k].icon).join(' ') : '—';
+    show('scrEnd');
+  }
+
+  $('btnPlay').addEventListener('click', startRun);
+  $('btnAgain').addEventListener('click', startRun);
+  $('btnHome').addEventListener('click', renderTitle);
+  $('btnHow').addEventListener('click', () => { $('how').hidden = !$('how').hidden; });
+  $('gDice').addEventListener('click', (e) => { const b = e.target.closest('.die'); if (b) onDie(+b.dataset.i); });
+  $('btnReroll').addEventListener('click', onReroll);
+  $('btnScore').addEventListener('click', onScore);
+  const charmInfo = (e) => {
+    const el = e.target.closest('.charm.on'); if (!el) return;
+    const k = el.dataset.k;
+    $('gCharmInfo').textContent = `${G.CHARMS[k].icon} ${G.CHARMS[k].name}: ${G.charmDesc(g, k)}`;
+  };
+  $('gCharms').addEventListener('click', charmInfo);
+  $('gCharms').addEventListener('focusin', charmInfo);
+  $('sOffers').addEventListener('click', (e) => { const b = e.target.closest('[data-buy]'); if (b && G.buy(g, b.dataset.buy)) { sfx.coin(); showShop(); } });
+  $('btnSound').addEventListener('click', () => { meta.sound = !meta.sound; store.set('lp-meta', meta); renderSound(); sfx.hold(); });
+  $('sOwned').addEventListener('click', (e) => { const b = e.target.closest('[data-sell]'); if (b && G.sell(g, b.dataset.sell)) showShop(); });
+  $('btnShopReroll').addEventListener('click', () => { if (G.rerollShop(g)) showShop(); });
+  $('btnNext').addEventListener('click', () => { if (G.nextRound(g)) { $('gToast').textContent = g.boss ? `Boss round: ${g.boss.name}` : ''; show('scrGame'); renderGame(); } });
+  document.addEventListener('keydown', (e) => {
+    if ($('scrGame').hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/^[1-5]$/.test(e.key)) onDie(+e.key - 1);
+    else if (e.key === 'r' || e.key === 'R') onReroll();
+    else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); onScore(); }
+  });
+
+  if (qs.has('test')) window.__lp = { get game() { return g; }, G }; // 検証用
+  renderSound();
+  renderTitle();
+})();
+</script>
+</body>
+</html>
